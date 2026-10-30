@@ -15,7 +15,9 @@ previous_image=$(cat "$APP_DIR/current-image" 2>/dev/null || true)
 compose=(docker compose --env-file "$CONFIG_FILE" -p salescope -f "$RELEASE_DIR/compose.yml")
 healthy=false
 if "${compose[@]}" up -d --wait --wait-timeout 120; then
-  if "${compose[@]}" exec -T app node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then healthy=true; fi
+  if "${compose[@]}" exec -T app node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
+    if "${compose[@]}" exec -T app node --input-type=module -e "import {callModel} from './server/assistant-plugin.js'; try { const result=await callModel([{role:'user',content:'Reply with OK only.'}],AbortSignal.timeout(45000)); if(!result.trim())process.exit(1); console.log('Model connectivity verified'); } catch { console.error('Model connectivity failed; check server model environment'); process.exit(1); }"; then healthy=true; fi
+  fi
 fi
 if [[ "$healthy" != true ]]; then
   if [[ -n "$previous_dir" && -n "$previous_image" ]]; then

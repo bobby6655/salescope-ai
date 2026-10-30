@@ -11,7 +11,7 @@ const readBody = async (request) => {
   for await (const chunk of request) { body += chunk; if (Buffer.byteLength(body) > 12 * 1024 * 1024) throw new Error('政策上传请求超过12MB') }
   return JSON.parse(body || '{}')
 }
-const getReport = (input, overrides = {}, options = {}) => ({ ...analyzePolicy(input.baseRows, input.consumptionRows, { ...input.rules, ...overrides }, { ...input.options, ...options }), sources: input.sources })
+const getReport = (input, overrides = {}, options = {}) => ({ ...analyzePolicy(input.baseRows, input.consumptionRows, { ...input.rules, ...overrides }, { ...input.options, ...options }), datasetKind: input.datasetKind || 'uploaded', sources: input.sources })
 
 export function policyMiddleware(callModel, redact = String, source = () => 'wanqing') {
   return async (request, response) => {

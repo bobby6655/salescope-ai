@@ -1,7 +1,7 @@
 export const NATIONAL_DAY_POLICY = {
-  name: '2026年游戏行业国庆&中秋冲量政策',
+  name: '模拟游戏客户13天增量激励政策（仅测试）',
   startDate: '2026-09-25', endDate: '2026-10-07',
-  sourceUrl: 'https://docs.corp.kuaishou.com/d/home/fcACBWYgvB9dcVkG8FAxuBTYb',
+  sourceUrl: '',
   sourcePublishedAt: '2026-09-22',
   annualRate: 0.12, channelRate: 0.085, regularRebateBasis: 'cashIncrement', roiScope: 'policyRecipients',
   missingAsZero: false, processBonusRate: 0, capMode: 'cashAdjusted', capCoefficient: 3,
@@ -16,8 +16,8 @@ export const NATIONAL_DAY_POLICY = {
     { type: '大游戏', min: 150, max: null, label: '[150+)', growth1: 0.20, rate1: 0.06, growth2: 0.50, rate2: 0.09 },
   ],
   warnings: [
-    '过程指标额外1%按用户要求忽略；返货为消耗口径试算，不代表已核验互斥、报名资格及钱包范围后的正式结算。',
-    '默认封顶公式：min(cost6增量×现金率, base日均×二档增速×3×天数)×对应返点率。原文示例16.5万与明确公式14.85万不一致，默认以明确公式为准。',
+    '默认政策仅为模拟测试规则；返货为消耗口径试算，不代表真实合同或正式结算。',
+    '模拟示例按明确封顶公式：min(cost6增量×现金率, base日均×二档增速×3×天数)×对应返点率。',
     '框架/渠道返货默认分别为正cost6增量×现金率×12%及×8.5%；ROI仅统计获得政策返货的客户，分子和三项返货分母使用同一客户范围；比例仍为合同试算假设。',
   ],
 }

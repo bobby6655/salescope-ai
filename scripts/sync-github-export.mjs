@@ -17,7 +17,7 @@ async function collect(directory) {
   }
 }
 for (const directory of ['src', 'server', 'scripts', 'data', 'deploy', '.github', 'docs']) await collect(directory)
-const allowedData = new Set(['sales-data.csv', 'orders-en.csv', 'ads-data.csv', 'ambiguous-data.csv', 'specialty-data.csv'])
+const allowedData = new Set(['sales-data.csv', 'orders-en.csv', 'ads-data.csv', 'ambiguous-data.csv', 'specialty-data.csv', 'policy-demo.json'])
 const selected = files.filter(file => !file.startsWith('data/') || allowedData.has(path.basename(file)))
 const env = await readFile(path.join(root, '.env'), 'utf8').catch(() => '')
 const secrets = env.split(/\r?\n/).filter(line => /^[A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)=/.test(line)).map(line => line.slice(line.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '')).filter(value => value.length > 8)

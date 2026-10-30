@@ -28,7 +28,7 @@ export async function savePolicyInput(input) {
 
 export async function readPolicyInput() {
   try { return JSON.parse(await readFile(path.join(storageDirectory('policy-data'), 'latest.json'), 'utf8')) } catch (error) {
-    if (error.code === 'ENOENT') throw new Error('尚未导入政策数据，请上传客户base表和消耗明细表')
+    if (error.code === 'ENOENT') return JSON.parse(await readFile(path.join(policyRoot, 'data/policy-demo.json'), 'utf8'))
     throw error
   }
 }

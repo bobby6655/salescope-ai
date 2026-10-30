@@ -12,6 +12,29 @@ import { withUserStorage } from '../server/storageContext.js'
 const password = 'test-only-password-12345'
 const hash = () => { const salt = randomBytes(16).toString('hex'); return `scrypt:${salt}:${scryptSync(password, salt, 32).toString('hex')}` }
 const auth = (name) => `Basic ${Buffer.from(`${name}:${password}`).toString('base64')}`
+
+test('new accounts receive synthetic default policy and uploads remain account-specific', async t => {
+  const app = await setup(t)
+  const report = await (await app.request('/api/policy/current')).json()
+  assert.equal(report.datasetKind, 'demo')
+  assert.equal(report.summary.count, 20)
+  assert.equal(report.summary.countRate, .75)
+  assert.ok(Math.abs(report.summary.roi - 4.081436389337797) < 1e-10)
+  assert.equal(report.rules.sourceUrl, '')
+  assert.ok(report.customers.every(customer => customer.customer.startsWith('模拟') && customer.sales.startsWith('模拟')))
+  for (const format of ['md', 'csv', 'json']) {
+    const response = await app.request(`/api/policy/export?format=${format}`)
+    assert.equal(response.status, 200)
+    const content = await response.text()
+    assert.ok(content.includes('模拟'))
+    assert.ok(!content.includes('docs.corp.kuaishou.com'))
+  }
+  await withUserStorage('alice', path.join(app.directory, 'users'), () => savePolicyInput({ baseRows: [{ 客户: 'alice-upload', 属性: '小游戏', 行业分组: '上传部门', 负责销售: '上传销售', 'base(万/日)': 1 }], consumptionRows: [] }))
+  const uploaded = await (await app.request('/api/policy/current')).json()
+  assert.equal(uploaded.datasetKind, 'uploaded')
+  assert.equal(uploaded.customers[0].customer, 'alice-upload')
+  assert.equal((await (await app.request('/api/policy/current', 'bob')).json()).datasetKind, 'demo')
+})
 async function setup(t, options = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), 'salescope-prod-'))
   await writeFile(path.join(directory, 'index.html'), '<h1>SaleScope production</h1>')

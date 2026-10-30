@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: HTTPS Quick Tunnel URL for this application
+        description: HTTPS application URL (owned domain, Vercel, or Quick Tunnel)
         required: true
 permissions:
   contents: read
@@ -16,9 +16,11 @@ jobs:
           PUBLIC_URL: ${{ inputs.url }}
         run: |
           set -euo pipefail
-          [[ "$PUBLIC_URL" =~ ^https://[a-z0-9-]+\.trycloudflare\.com$ ]] || exit 2
+          [[ "$PUBLIC_URL" =~ ^https://([a-z0-9-]+\.trycloudflare\.com|bobbyyang\.online|bobbyyang-salescope\.vercel\.app)$ ]] || exit 2
           health=$(curl --silent --show-error --max-time 30 --output /tmp/health.json --write-out '%{http_code}' "$PUBLIC_URL/api/health")
-          login=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' "$PUBLIC_URL/")
+          session=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' "$PUBLIC_URL/api/auth/session")
+          login=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' "$PUBLIC_URL/login")
           test "$health" = 200
-          test "$login" = 401
-          echo "Public health=$health; unauthenticated page=$login; endpoint reachable from GitHub runner."
+          test "$session" = 401
+          test "$login" = 200
+          echo "Public health=$health; unauthenticated session=$session; login page=$login; HTTPS endpoint reachable from GitHub runner."

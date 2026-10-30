@@ -3,9 +3,10 @@ import { readFile, stat } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { scryptSync, timingSafeEqual, createHash } from 'node:crypto'
+import { scryptSync, timingSafeEqual, createHash, randomBytes } from 'node:crypto'
 import { registerApiRoutes } from './assistant-plugin.js'
 import { withUserStorage } from './storageContext.js'
+import { loginPage, loginScript } from './loginPage.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' }
@@ -18,10 +19,25 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
   const routes = suppliedRoutes ?? []
   if (!suppliedRoutes) registerApiRoutes({ use: (prefix, handler) => routes.push({ prefix, handler }) })
   const authenticated = new Map()
+  const sessions = new Map()
+  const cookieName = 'salescope_session'
+  const sessionAge = 12 * 60 * 60
   const busyUsers = new Set()
   const failed = new Map()
   let concurrent = 0
+  const verifyPassword = (name, password) => {
+    if (typeof name !== 'string' || typeof password !== 'string' || !/^[A-Za-z0-9_.-]{1,64}$/.test(name) || password.length > 256) return false
+    const hash = Object.hasOwn(users, name) ? users[name] : null
+    if (!hash) return false
+    const [, salt, digest] = hash.split(':')
+    return timingSafeEqual(scryptSync(password, salt, 32), Buffer.from(digest, 'hex'))
+  }
+  const sessionToken = request => String(request.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1)
   const authenticate = (request) => {
+    const token = sessionToken(request)
+    const session = sessions.get(token)
+    if (session?.expires > Date.now() && Object.hasOwn(users, session.user)) return session.user
+    if (session) sessions.delete(token)
     const header = request.headers.authorization || ''
     if (!header.startsWith('Basic ') || header.length > 2048) return null
     const cacheKey = createHash('sha256').update(header).digest('hex')
@@ -30,10 +46,7 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
     const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8')
     const colon = decoded.indexOf(':')
     const name = decoded.slice(0, colon), password = decoded.slice(colon + 1)
-    const hash = Object.hasOwn(users, name) ? users[name] : null
-    if (colon < 1 || !hash || password.length > 256) return null
-    const [, salt, digest] = hash.split(':')
-    if (!timingSafeEqual(scryptSync(password, salt, 32), Buffer.from(digest, 'hex'))) return null
+    if (colon < 1 || !verifyPassword(name, password)) return null
     if (authenticated.size > 500) authenticated.clear()
     authenticated.set(cacheKey, { user: name, expires: Date.now() + 15 * 60 * 1000 })
     return name
@@ -46,23 +59,60 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
     let pathname
     try { pathname = new URL(request.url, 'http://localhost').pathname } catch { return json(response, 400, { error: 'URL格式无效' }) }
     if (pathname === '/api/health' && request.method === 'GET') return json(response, 200, { status: 'ok', version: '2.0.0' })
+    const expectedOrigin = publicOrigin || `http://${request.headers.host}`
+    const cookieFlags = `Path=/; HttpOnly; SameSite=Strict${expectedOrigin.startsWith('https://') ? '; Secure' : ''}`
+    if (pathname === '/login' && request.method === 'GET') { response.setHeader('Content-Type', 'text/html; charset=utf-8'); return response.end(loginPage) }
+    if (pathname === '/auth/login.js' && request.method === 'GET') { response.setHeader('Content-Type', 'text/javascript; charset=utf-8'); return response.end(loginScript) }
+    if (pathname === '/api/auth/login' && request.method === 'POST') {
+      if (!String(request.headers['content-type']).startsWith('application/json')) return json(response, 415, { error: '登录请求必须为JSON' })
+      if (request.headers.origin && request.headers.origin !== expectedOrigin) return json(response, 403, { error: '不允许跨站登录' })
+      let body = ''
+      try {
+        for await (const chunk of request) { body += chunk; if (Buffer.byteLength(body) > 4096) throw new Error('too large') }
+        const { username, password } = JSON.parse(body)
+        const key = `login:${request.socket.remoteAddress}:${String(username).slice(0, 64)}`
+        const prior = failed.get(key)
+        if (prior?.count >= 10 && prior.until > Date.now()) return json(response, 429, { error: '登录尝试过多，请稍后重试' })
+        if (!verifyPassword(username, password)) {
+          if (failed.size > 1000) failed.clear()
+          failed.set(key, { count: (prior?.until > Date.now() ? prior.count : 0) + 1, until: Date.now() + 60000 })
+          return json(response, 401, { error: '账号或密码不正确' })
+        }
+        failed.delete(key)
+        for (const [token, session] of sessions) if (session.expires <= Date.now()) sessions.delete(token)
+        if (sessions.size >= 1000) return json(response, 503, { error: '当前登录人数已达上限，请稍后重试' })
+        const token = randomBytes(32).toString('base64url')
+        sessions.set(token, { user: username, expires: Date.now() + sessionAge * 1000 })
+        response.setHeader('Set-Cookie', `${cookieName}=${token}; Max-Age=${sessionAge}; ${cookieFlags}`)
+        return json(response, 200, { ok: true, user: username })
+      } catch { return json(response, 400, { error: '登录请求格式无效' }) }
+    }
     const address = request.socket.remoteAddress || 'unknown'
     const attempts = failed.get(address)
-    if (attempts && attempts.count >= 10 && attempts.until > Date.now()) return json(response, 429, { error: '登录尝试过多，请稍后重试' })
     const user = authenticate(request)
     if (!user) {
-      if (failed.size > 1000) failed.clear()
-      const previous = attempts && attempts.until > Date.now() ? attempts.count : 0
-      failed.set(address, { count: previous + 1, until: Date.now() + 60000 })
-      response.setHeader('WWW-Authenticate', 'Basic realm="SaleScope", charset="UTF-8"')
+      if (request.method === 'GET' && String(request.headers.accept).includes('text/html') && !pathname.startsWith('/api/') && !pathname.startsWith('/charts/')) { response.statusCode = 303; response.setHeader('Location', '/login'); return response.end() }
+      if (request.headers.authorization) {
+        if (attempts && attempts.count >= 10 && attempts.until > Date.now()) return json(response, 429, { error: '登录尝试过多，请稍后重试' })
+        if (failed.size > 1000) failed.clear()
+        const previous = attempts && attempts.until > Date.now() ? attempts.count : 0
+        failed.set(address, { count: previous + 1, until: Date.now() + 60000 })
+      }
+      if (request.headers.authorization?.startsWith('Basic ')) response.setHeader('WWW-Authenticate', 'Basic realm="SaleScope", charset="UTF-8"')
       return json(response, 401, { error: '需要有效账号才能访问' })
     }
     failed.delete(address)
+    if (pathname === '/api/auth/session' && request.method === 'GET') return json(response, 200, { user })
+    if (pathname === '/api/auth/logout' && request.method === 'POST') {
+      if (!String(request.headers['content-type']).startsWith('application/json') || (request.headers.origin && request.headers.origin !== expectedOrigin)) return json(response, 403, { error: '不允许跨站退出' })
+      sessions.delete(sessionToken(request))
+      response.setHeader('Set-Cookie', `${cookieName}=; Max-Age=0; ${cookieFlags}`)
+      return json(response, 200, { ok: true })
+    }
     if (!['GET', 'HEAD', 'POST'].includes(request.method)) return json(response, 405, { error: '不支持的请求方法' })
     if (request.method === 'POST') {
       if (Number(request.headers['content-length']) > 12 * 1024 * 1024) return json(response, 413, { error: '上传请求超过12MB' })
       if (!String(request.headers['content-type']).startsWith('application/json')) return json(response, 415, { error: '写入接口仅接受application/json' })
-      const expectedOrigin = publicOrigin || `http://${request.headers.host}`
       if (request.headers.origin && request.headers.origin !== expectedOrigin) return json(response, 403, { error: '不允许跨站请求' })
       if (busyUsers.has(user) || concurrent >= maxConcurrent) return json(response, 429, { error: '当前有分析或上传正在执行，请稍后重试' })
       busyUsers.add(user); concurrent += 1

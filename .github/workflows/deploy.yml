@@ -1,0 +1,74 @@
+name: Verify and deploy SaleScope
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: salescope-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install public dependencies with integrity checks
+        run: |
+          node -e "const fs=require('fs');let s=fs.readFileSync('package-lock.json','utf8').replaceAll('https://npm.corp.kuaishou.com/','https://registry.npmjs.org/');fs.writeFileSync('package-lock.json',s)"
+          npm ci --registry=https://registry.npmjs.org/
+      - run: npm test
+      - run: npm run check
+      - run: npm run build
+      - run: docker build -t salescope-verify .
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and publish immutable image
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_SHA"
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build -t "$image" .
+          docker push "$image"
+          echo "APP_IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Deploy over verified SSH connection
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          APP_DIR: ${{ vars.APP_DIR }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SSH_PORT=${SSH_PORT:-22}
+          APP_DIR=${APP_DIR:-/opt/salescope}
+          [[ "$SSH_HOST" =~ ^[A-Za-z0-9.-]+$ && "$SSH_USER" =~ ^[A-Za-z0-9_-]+$ && "$SSH_PORT" =~ ^[0-9]+$ ]] || exit 2
+          [[ "$APP_DIR" =~ ^/[A-Za-z0-9_./-]+$ && "$APP_DIR" != / && "$APP_DIR" != *..* ]] || exit 2
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh_args=(-i ~/.ssh/deploy_key -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes)
+          remote="$SSH_USER@$SSH_HOST"
+          release="$APP_DIR/releases/$GITHUB_SHA"
+          ssh "${ssh_args[@]}" "$remote" "mkdir -p '$release' '$APP_DIR/.docker-auth'"
+          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes deploy/compose.yml deploy/Caddyfile deploy/activate-release.sh deploy/rollback.sh "$remote:$release/"
+          printf '%s' "$REGISTRY_TOKEN" | ssh "${ssh_args[@]}" "$remote" "docker --config '$APP_DIR/.docker-auth' login ghcr.io -u '$GITHUB_ACTOR' --password-stdin"
+          ssh "${ssh_args[@]}" "$remote" "trap 'rm -rf \"$APP_DIR/.docker-auth\"' EXIT; docker --config '$APP_DIR/.docker-auth' pull '$APP_IMAGE'; bash '$release/activate-release.sh' '$APP_DIR' '$APP_IMAGE' '$release'"
+      - name: Remove temporary runner credentials
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

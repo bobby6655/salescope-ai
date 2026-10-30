@@ -15,7 +15,8 @@
     "policy:import": "node scripts/import-policy.mjs",
     "check:policy": "node scripts/policy-check.mjs",
     "check:policy-browser": "node scripts/policy-browser-check.mjs",
-    "check:change-browser": "node scripts/change-browser-check.mjs"
+    "check:change-browser": "node scripts/change-browser-check.mjs",
+    "start": "node server/production.js"
   },
   "dependencies": {
     "react": "^18.3.1",

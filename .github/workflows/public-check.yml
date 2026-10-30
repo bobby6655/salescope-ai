@@ -1,0 +1,24 @@
+name: Check public endpoint
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: HTTPS Quick Tunnel URL for this application
+        required: true
+permissions:
+  contents: read
+jobs:
+  public-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify external reachability and authentication boundary
+        env:
+          PUBLIC_URL: ${{ inputs.url }}
+        run: |
+          set -euo pipefail
+          [[ "$PUBLIC_URL" =~ ^https://[a-z0-9-]+\.trycloudflare\.com$ ]] || exit 2
+          health=$(curl --silent --show-error --max-time 30 --output /tmp/health.json --write-out '%{http_code}' "$PUBLIC_URL/api/health")
+          login=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' "$PUBLIC_URL/")
+          test "$health" = 200
+          test "$login" = 401
+          echo "Public health=$health; unauthenticated page=$login; endpoint reachable from GitHub runner."

@@ -136,3 +136,11 @@ test('HTTPS sessions carry Secure cookies and cross-site login/logout are reject
   assert.equal((await fetch(app.origin+'/api/auth/logout',{...options,headers:{...options.headers,cookie}})).status,403)
   assert.equal((await fetch(app.origin+'/api/auth/session',{headers:{cookie}})).status,200)
 })
+
+test('explicit Vercel origins can log in through a proxy while arbitrary origins stay rejected', async t => {
+  const app=await setup(t,{publicOrigin:'https://backend.example',publicOriginAliases:['https://salescope-test.vercel.app']})
+  const payload={method:'POST',headers:{'content-type':'application/json',origin:'https://salescope-test.vercel.app'},body:JSON.stringify({username:'alice',password})}
+  assert.equal((await fetch(app.origin+'/api/auth/login',payload)).status,200)
+  assert.equal((await fetch(app.origin+'/api/auth/login',{...payload,headers:{...payload.headers,origin:'https://other.vercel.app'}})).status,403)
+  assert.throws(()=>createProductionServer({users:{alice:hash()},publicOriginAliases:['https://*.vercel.app']}),/通配符/)
+})

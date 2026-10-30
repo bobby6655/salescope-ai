@@ -1,0 +1,16 @@
+node_modules
+dist
+.env
+.env.*
+.ks_sso
+runtime-data
+policy-data
+policy-reports
+charts
+evaluations
+releases
+versions
+AGENTS.md
+PROJECT_CONTEXT.md
+*.log
+.DS_Store

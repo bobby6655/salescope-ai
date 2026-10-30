@@ -1,0 +1,28 @@
+{
+  "framework": "vite",
+  "installCommand": "node scripts/install-public-deps.mjs",
+  "buildCommand": "VITE_REQUIRE_AUTH=true npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/login",
+      "destination": "https://gpl-billion-languages-thesaurus.trycloudflare.com/login"
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "https://gpl-billion-languages-thesaurus.trycloudflare.com/auth/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://gpl-billion-languages-thesaurus.trycloudflare.com/api/:path*"
+    },
+    {
+      "source": "/charts/:path*",
+      "destination": "https://gpl-billion-languages-thesaurus.trycloudflare.com/charts/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

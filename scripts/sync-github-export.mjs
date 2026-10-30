@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const target = path.join(root, 'releases/salescope-ai-github')
 const origin = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: target, encoding: 'utf8' }).trim()
 if (!['https://github.com/bobby6655/salescope-ai.git', 'git@github.com:bobby6655/salescope-ai.git'].includes(origin)) throw new Error('Git副本远端不匹配，停止同步')
-const files = ['package.json', 'package-lock.json', 'vite.config.js', 'index.html', '.env.example', 'Dockerfile', '.dockerignore']
+const files = ['package.json', 'package-lock.json', 'vite.config.js', 'index.html', '.env.example', 'Dockerfile', '.dockerignore', 'vercel.json', '.vercelignore']
 async function collect(directory) {
   for (const entry of await readdir(path.join(root, directory), { withFileTypes: true })) {
     const relative = path.join(directory, entry.name)
@@ -32,6 +32,7 @@ for (const filename of selected) {
 }
 const ignore = await readFile(path.join(target, '.gitignore'), 'utf8')
 if (!ignore.includes('runtime-data/')) await writeFile(path.join(target, '.gitignore'), `${ignore}\nruntime-data/\nauth-users*.json\n!deploy/.env.production.example\n`)
+if (!ignore.includes('.vercel/')) await writeFile(path.join(target,'.gitignore'),`${await readFile(path.join(target,'.gitignore'),'utf8')}\n.vercel/\n`)
 const readme = await readFile(path.join(target, 'README.md'), 'utf8')
 if (!readme.includes('docs/PUBLIC_DEPLOYMENT.md')) await writeFile(path.join(target, 'README.md'), `${readme}\n## 公网部署\n\n独立Node生产服务、用户隔离、Docker、Caddy HTTPS、GitHub Actions及回退流程见 [公网部署说明](docs/PUBLIC_DEPLOYMENT.md)。生产启动命令为\`npm start\`，必须配置账号和模型环境。\n`)
 console.log(JSON.stringify({ target, synced: selected.length, credentialScan: 'passed', v1: '未修改', excluded: '真实数据、运行时文件、密钥及客户复盘文档' }))

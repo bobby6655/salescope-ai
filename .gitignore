@@ -17,3 +17,5 @@ releases/
 runtime-data/
 auth-users*.json
 !deploy/.env.production.example
+
+.vercel/

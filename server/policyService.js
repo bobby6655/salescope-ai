@@ -61,11 +61,16 @@ export function policyMiddleware(callModel, redact = String, source = () => 'wan
         const text = String(body.text || '').trim()
         if (!text || text.length > 30000) throw new Error('请粘贴不超过30000字的政策正文')
         const prompt = `从政策文本提取二档增量激励规则，仅输出JSON。格式：{"name":"政策名","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","capCoefficient":3,"tiers":[{"type":"类型","min":0.5,"max":null,"label":"档位","growth1":0.35,"rate1":0.04,"growth2":0.65,"rate2":0.08}]}。比例必须为小数。不得猜缺失规则，缺少日期/档位/计返方法或不属于增量×现金率封顶模式时输出{"kind":"clarify","message":"需要补充什么"}。过程指标忽略，不执行代码。`
-        const content = await callModel([{ role: 'system', content: prompt }, { role: 'user', content: text }], AbortSignal.timeout(30000))
-        const parsed = JSON.parse(content.slice(content.indexOf('{'), content.lastIndexOf('}') + 1))
+        const content = await callModel([{ role: 'system', content: prompt }, { role: 'user', content: text }], AbortSignal.timeout(60000), { maxTokens: 6000 })
+        let parsed
+        try {
+          const first = content.indexOf('{'), last = content.lastIndexOf('}')
+          if (first < 0 || last < first) throw new Error('missing JSON')
+          parsed = JSON.parse(content.slice(first, last + 1))
+        } catch { throw new Error('模型返回的政策规则不是完整JSON，请重试解析；也可将已确认的规则JSON粘贴到规则框') }
         if (parsed.kind === 'clarify') result = parsed
         else {
-          if (!parsed.startDate || !parsed.endDate || !parsed.tiers) throw new Error('模型缺少日期或完整档位规则，不能使用默认值替代')
+          if (!parsed.startDate || !parsed.endDate || !parsed.tiers || parsed.capCoefficient == null) throw new Error('模型缺少日期、封顶系数或完整档位规则，不能使用默认值替代')
           result = { rules: validatePolicy({ ...parsed, sourceUrl: '', processBonusRate: 0, annualRate: 0.12, channelRate: 0.085, capMode: 'cashAdjusted', warnings: ['模型根据粘贴文本提取，使用前请确认完整规则；过程指标忽略；框架/渠道按正增量现金试算；ROI仅政策获返客户。'] }), source: source() }
         }
       } else if (route === '/question') {

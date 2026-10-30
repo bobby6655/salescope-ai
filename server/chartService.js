@@ -1,3 +1,5 @@
+import { storageDirectory } from './storageContext.js'
+import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
 import path from 'node:path'
@@ -7,10 +9,11 @@ import { renderChartSvg } from '../src/chartGenerator.js'
 const chartsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../charts')
 
 async function writeChartFile({ type, title, rows, metric, operation }) {
+  const chartsDir = storageDirectory('charts')
   await mkdir(chartsDir, { recursive: true })
   const svg = renderChartSvg({ type, title, rows, metric, operation })
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const fileName = `${type}-${stamp}.svg`
+  const fileName = `${type}-${stamp}-${randomUUID()}.svg`
   const filePath = path.join(chartsDir, fileName)
   await writeFile(filePath, svg, 'utf8')
   return {
@@ -37,6 +40,7 @@ async function saveChart(options) {
 }
 
 function serveChart(request, response, next) {
+  const chartsDir = storageDirectory('charts')
   if (!request.url || request.url === '/') return next()
   const requestPath = decodeURIComponent(request.url.split('?')[0].replace(/^\//, ''))
   const filePath = path.normalize(path.join(chartsDir, requestPath))

@@ -16,16 +16,16 @@ function readEnv(name, fallback = '') {
 }
 
 function redactError(message) {
-  const key = readEnv('WQ_API_KEY')
+  const key = readEnv('LLM_API_KEY', readEnv('WQ_API_KEY'))
   return key ? String(message).split(key).join('[REDACTED]') : String(message)
 }
 
-async function callModel(messages, signal) {
-  const baseUrl = readEnv('WQ_BASE_URL', 'https://wanqing-api.corp.kuaishou.com/api/gateway/v1/endpoints').replace(/\/$/, '')
-  const endpoint = `${baseUrl}${readEnv('WQ_API_PATH', '/chat/completions')}`
-  const apiKey = readEnv('WQ_API_KEY')
-  const model = readEnv('WQ_MODEL_ID')
-  if (!apiKey || !model) throw new Error('缺少 WQ_API_KEY 或 WQ_MODEL_ID')
+export async function callModel(messages, signal) {
+  const baseUrl = readEnv('LLM_BASE_URL', readEnv('WQ_BASE_URL', 'https://wanqing-api.corp.kuaishou.com/api/gateway/v1/endpoints')).replace(/\/$/, '')
+  const endpoint = `${baseUrl}${readEnv('LLM_API_PATH', readEnv('WQ_API_PATH', '/chat/completions'))}`
+  const apiKey = readEnv('LLM_API_KEY', readEnv('WQ_API_KEY'))
+  const model = readEnv('LLM_MODEL', readEnv('WQ_MODEL_ID'))
+  if (!apiKey || !model) throw new Error('缺少模型API密钥或模型ID')
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -76,12 +76,11 @@ async function makeChart(question, plan, computed, agentSteps) {
   return chart
 }
 
-function createAssistantPlugin() {
-  return {
-    name: 'sale-scope-assistant',
-    configureServer(server) {
-      server.middlewares.use('/api/policy', policyMiddleware(callModel, redactError))
-      server.middlewares.use('/api/assistant', async (request, response) => {
+export const modelSource = () => readEnv('LLM_BASE_URL') ? 'openai-compatible' : 'wanqing'
+
+export function registerApiRoutes(middlewares) {
+      middlewares.use('/api/policy', policyMiddleware(callModel, redactError, modelSource))
+      middlewares.use('/api/assistant', async (request, response) => {
         if (request.method !== 'POST') {
           response.statusCode = 405
           response.end(JSON.stringify({ error: '只支持 POST 请求' }))
@@ -93,9 +92,11 @@ function createAssistantPlugin() {
         try {
           const body = await new Promise((resolve, reject) => {
             let payload = ''
+            let exceeded = false
             request.on('data', (chunk) => {
+              if (exceeded) return
               payload += chunk
-              if (payload.length > 2_000_000) reject(new Error('请求体过大'))
+              if (Buffer.byteLength(payload) > 2_000_000) { exceeded = true; payload = ''; reject(new Error('请求体过大')) }
             })
             request.on('end', () => {
               try {
@@ -117,7 +118,7 @@ function createAssistantPlugin() {
           if (!rows.length) throw new Error('没有可分析的数据')
 
           let result = null
-          let source = 'wanqing'
+          let source = modelSource()
           try {
             const completed = await runAgentLoop({ question, rows, headers, bindings, types, history, callModel, saveChart, agentSteps, redact: redactError })
             result = { ...completed, aiMode: true, source, question, agentSteps, steps: agentSteps.map((step) => `${step.title}：${step.result}`), totalSteps: agentSteps.length, elapsedMs: Date.now() - started }
@@ -190,8 +191,8 @@ function createAssistantPlugin() {
           response.end(JSON.stringify({ error: redactError(error.message), agentSteps, totalSteps: agentSteps.length }))
         }
       })
-      server.middlewares.use('/charts', (request, response, next) => serveChart(request, response, next))
-      server.middlewares.use('/api/evaluation', async (request, response) => {
+      middlewares.use('/charts', (request, response, next) => serveChart(request, response, next))
+      middlewares.use('/api/evaluation', async (request, response) => {
         if (request.method !== 'POST') {
           response.statusCode = 405
           response.end(JSON.stringify({ error: '只支持 POST 请求' }))
@@ -199,7 +200,7 @@ function createAssistantPlugin() {
         }
         try {
           let body = ''
-          for await (const chunk of request) body += chunk
+          for await (const chunk of request) { body += chunk; if (Buffer.byteLength(body) > 2_000_000) throw new Error('评测请求体过大') }
           const payload = JSON.parse(body || '{}')
           if (!Array.isArray(payload.results) || payload.results.length !== 10) throw new Error('评测结果必须包含 10 道题')
           const saved = await saveEvaluation({ ...payload, savedAt: new Date().toISOString() })
@@ -211,8 +212,7 @@ function createAssistantPlugin() {
           response.end(JSON.stringify({ error: error.message }))
         }
       })
-    },
-  }
 }
 
+function createAssistantPlugin() { return { name: 'sale-scope-assistant', configureServer(server) { registerApiRoutes(server.middlewares) } } }
 export { createAssistantPlugin }

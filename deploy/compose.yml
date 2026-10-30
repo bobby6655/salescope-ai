@@ -1,0 +1,46 @@
+services:
+  app:
+    image: ${APP_IMAGE:-salescope-ai:local}
+    restart: unless-stopped
+    env_file: ${CONFIG_FILE:-.env.production}
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATA_ROOT: /var/lib/salescope
+      WQ_DEMO_FALLBACK: "false"
+    volumes:
+      - app_data:/var/lib/salescope
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1536m
+    cpus: 1.5
+    stop_grace_period: 190s
+    networks: [app]
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?必须配置域名}
+      ACME_EMAIL: ${ACME_EMAIL:?必须配置证书联系邮箱}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [app]
+volumes:
+  app_data:
+    name: salescope_app_data
+  caddy_data:
+    name: salescope_caddy_data
+  caddy_config:
+    name: salescope_caddy_config
+networks:
+  app:

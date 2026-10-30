@@ -42,3 +42,7 @@ npm run package:v1
 政策返货保留达成和封顶，框架/渠道按正增量现金计算。结果是当前配置下的试算。
 密钥、登录缓存、客户输入、运行时报告、图表和依赖不随源码上传。
 V1快照按原哈希保留；GitHub副本不包含本地项目历史记录中的客户复盘。
+
+## 公网部署
+
+独立Node生产服务、用户隔离、Docker、Caddy HTTPS、GitHub Actions及回退流程见 [公网部署说明](docs/PUBLIC_DEPLOYMENT.md)。生产启动命令为`npm start`，必须配置账号和模型环境。

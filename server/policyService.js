@@ -13,7 +13,7 @@ const readBody = async (request) => {
 }
 const getReport = (input, overrides = {}, options = {}) => ({ ...analyzePolicy(input.baseRows, input.consumptionRows, { ...input.rules, ...overrides }, { ...input.options, ...options }), sources: input.sources })
 
-export function policyMiddleware(callModel, redact = String) {
+export function policyMiddleware(callModel, redact = String, source = () => 'wanqing') {
   return async (request, response) => {
     const route = request.url?.split('?')[0]
     try {
@@ -66,7 +66,7 @@ export function policyMiddleware(callModel, redact = String) {
         if (parsed.kind === 'clarify') result = parsed
         else {
           if (!parsed.startDate || !parsed.endDate || !parsed.tiers) throw new Error('模型缺少日期或完整档位规则，不能使用默认值替代')
-          result = { rules: validatePolicy({ ...parsed, sourceUrl: '', processBonusRate: 0, annualRate: 0.12, channelRate: 0.085, capMode: 'cashAdjusted', warnings: ['模型根据粘贴文本提取，使用前请确认完整规则；过程指标忽略；框架/渠道按正增量现金试算；ROI仅政策获返客户。'] }), source: 'wanqing' }
+          result = { rules: validatePolicy({ ...parsed, sourceUrl: '', processBonusRate: 0, annualRate: 0.12, channelRate: 0.085, capMode: 'cashAdjusted', warnings: ['模型根据粘贴文本提取，使用前请确认完整规则；过程指标忽略；框架/渠道按正增量现金试算；ROI仅政策获返客户。'] }), source: source() }
         }
       } else if (route === '/question') {
         const input = await readPolicyInput()
@@ -78,7 +78,7 @@ export function policyMiddleware(callModel, redact = String) {
         const tools = createPolicyTools(async (asOf) => asOf ? getReport(input, {}, { asOf }) : report)
         const extraPrompt = `当前是政策消耗复盘：${report.rules.name}，${report.rules.startDate}—${report.rules.endDate}，截至${report.asOf}，共${report.elapsedDays}天。金额单位万元。销售名下客户清单可一次policy_summary，filters筛选sales，group_by=customer；不同部门与类型交叉可group_by=[\"department\",\"type\"]。新增工具：{"action":"policy_summary","filters":[{"field":"sales|customer|department|type|tier|status","operator":"equals|contains|in|gt|gte|lt|lte","value":"值"}],"group_by":"sales|department|type|tier|customer或null","metric":"cost6|cost4|growth|countRate|baseWeightedRate|roi|policyRebate|increment","order":"asc|desc或null","limit":null,"asOf":"可选截止日"}；用于整体或销售/部门/类型汇总、客户数与base加权达成率、ROI，所有比率必须由工具汇总计算，不能平均客户ROI。{"action":"policy_customer","customer":"准确客户名","asOf":"可选截止日"}获取单客户达成、返货、缺口与每天消耗过程；{"action":"policy_trend","filters":[],"asOf":"可选截止日"}获取筛选客户日度过程，可继续render_chart画折线图。这些工具返回result_id，最终用finish引用。'过程冲得怎么样'指消耗走势，不是创意过程额外奖励；过程奖励忽略。现金率cost4/cost6；框架${report.rules.annualRate}、渠道${report.rules.channelRate}基数=正cost6增量×现金率。ROI仅统计政策返货>0的客户：这些客户cost6增量之和/(同一批客户的政策返货+框架增量返货+渠道增量返货)。政策返货保留达成与封顶；框架/渠道按正cost6增量×现金率×对应返点率。无政策获返客户时ROI为null，不得引用全客户负增量计算获返客户ROI；同时可看政策单独ROI。客户达成率分母是当前群体base客户数，base加权率是达成客户base和/总base，不是消耗权重。缺明细不得宣称零。${report.warnings.join('；')}`
         const agentSteps = []
-        result = { ...await runAgentLoop({ question, rows, headers: Object.keys(rows[0]), history, callModel, saveChart, agentSteps, extraTools: tools, extraPrompt, redact }), source: 'wanqing', aiMode: true, agentSteps }
+        result = { ...await runAgentLoop({ question, rows, headers: Object.keys(rows[0]), history, callModel, saveChart, agentSteps, extraTools: tools, extraPrompt, redact }), source: source(), aiMode: true, agentSteps }
       } else throw new Error('政策接口不存在')
       response.setHeader('Content-Type', 'application/json; charset=utf-8')
       response.end(JSON.stringify(result))

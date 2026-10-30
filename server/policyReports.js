@@ -1,3 +1,4 @@
+import { storageDirectory, atomicWrite } from './storageContext.js'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { policyRoot } from './policyIO.js'
@@ -33,8 +34,8 @@ export function policyCsv(report) {
 }
 
 export async function savePolicyReport(report) {
-  const directory = path.join(policyRoot, 'policy-reports')
+  const directory = storageDirectory('policy-reports')
   await mkdir(directory, { recursive: true })
-  await Promise.all([writeFile(path.join(directory, 'latest.json'), JSON.stringify(report, null, 2)), writeFile(path.join(directory, 'latest.md'), policyMarkdown(report)), writeFile(path.join(directory, 'customers.csv'), policyCsv(report))])
+  await Promise.all([atomicWrite(path.join(directory, 'latest.json'), JSON.stringify(report, null, 2)), atomicWrite(path.join(directory, 'latest.md'), policyMarkdown(report)), atomicWrite(path.join(directory, 'customers.csv'), policyCsv(report))])
   return { markdown: 'policy-reports/latest.md', json: 'policy-reports/latest.json', customers: 'policy-reports/customers.csv' }
 }

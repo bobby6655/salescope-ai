@@ -1,3 +1,4 @@
+import { storageDirectory, atomicWrite } from './storageContext.js'
 import { execFile } from 'node:child_process'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -22,12 +23,11 @@ export async function readPolicyWorkbook(bytes, name) {
 }
 
 export async function savePolicyInput(input) {
-  await mkdir(path.join(policyRoot, 'policy-data'), { recursive: true })
-  await writeFile(path.join(policyRoot, 'policy-data/latest.json'), JSON.stringify(input), 'utf8')
+  await atomicWrite(path.join(storageDirectory('policy-data'), 'latest.json'), JSON.stringify(input))
 }
 
 export async function readPolicyInput() {
-  try { return JSON.parse(await readFile(path.join(policyRoot, 'policy-data/latest.json'), 'utf8')) } catch (error) {
+  try { return JSON.parse(await readFile(path.join(storageDirectory('policy-data'), 'latest.json'), 'utf8')) } catch (error) {
     if (error.code === 'ENOENT') throw new Error('尚未导入政策数据，请上传客户base表和消耗明细表')
     throw error
   }

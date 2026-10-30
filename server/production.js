@@ -1,0 +1,113 @@
+import http from 'node:http'
+import { readFile, stat } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { scryptSync, timingSafeEqual, createHash } from 'node:crypto'
+import { registerApiRoutes } from './assistant-plugin.js'
+import { withUserStorage } from './storageContext.js'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' }
+const json = (response, status, payload) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(payload)) }
+
+export function createProductionServer({ users = JSON.parse(process.env.AUTH_USERS_JSON || '{}'), dataRoot = process.env.DATA_ROOT || path.join(root, 'runtime-data'), distRoot = path.join(root, 'dist'), publicOrigin = process.env.PUBLIC_ORIGIN || '', maxConcurrent = Number(process.env.MAX_CONCURRENT_ANALYSES || 4), routes: suppliedRoutes } = {}) {
+  if (!Object.keys(users).length) throw new Error('生产服务必须配置AUTH_USERS_JSON，不能匿名开放分析接口')
+  if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 32) throw new Error('MAX_CONCURRENT_ANALYSES必须为1到32的整数')
+  for (const [name, hash] of Object.entries(users)) if (!/^[A-Za-z0-9_.-]{1,64}$/.test(name) || !/^scrypt:[a-f0-9]{32}:[a-f0-9]{64}$/.test(hash)) throw new Error('账号名称或scrypt密码哈希格式无效')
+  const routes = suppliedRoutes ?? []
+  if (!suppliedRoutes) registerApiRoutes({ use: (prefix, handler) => routes.push({ prefix, handler }) })
+  const authenticated = new Map()
+  const busyUsers = new Set()
+  const failed = new Map()
+  let concurrent = 0
+  const authenticate = (request) => {
+    const header = request.headers.authorization || ''
+    if (!header.startsWith('Basic ') || header.length > 2048) return null
+    const cacheKey = createHash('sha256').update(header).digest('hex')
+    const cached = authenticated.get(cacheKey)
+    if (cached && cached.expires > Date.now()) return cached.user
+    const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8')
+    const colon = decoded.indexOf(':')
+    const name = decoded.slice(0, colon), password = decoded.slice(colon + 1)
+    const hash = Object.hasOwn(users, name) ? users[name] : null
+    if (colon < 1 || !hash || password.length > 256) return null
+    const [, salt, digest] = hash.split(':')
+    if (!timingSafeEqual(scryptSync(password, salt, 32), Buffer.from(digest, 'hex'))) return null
+    if (authenticated.size > 500) authenticated.clear()
+    authenticated.set(cacheKey, { user: name, expires: Date.now() + 15 * 60 * 1000 })
+    return name
+  }
+  const server = http.createServer(async (request, response) => {
+    response.setHeader('X-Content-Type-Options', 'nosniff')
+    response.setHeader('Referrer-Policy', 'no-referrer')
+    response.setHeader('Cache-Control', 'no-store')
+    response.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'")
+    let pathname
+    try { pathname = new URL(request.url, 'http://localhost').pathname } catch { return json(response, 400, { error: 'URL格式无效' }) }
+    if (pathname === '/api/health' && request.method === 'GET') return json(response, 200, { status: 'ok', version: '2.0.0' })
+    const address = request.socket.remoteAddress || 'unknown'
+    const attempts = failed.get(address)
+    if (attempts && attempts.count >= 10 && attempts.until > Date.now()) return json(response, 429, { error: '登录尝试过多，请稍后重试' })
+    const user = authenticate(request)
+    if (!user) {
+      if (failed.size > 1000) failed.clear()
+      const previous = attempts && attempts.until > Date.now() ? attempts.count : 0
+      failed.set(address, { count: previous + 1, until: Date.now() + 60000 })
+      response.setHeader('WWW-Authenticate', 'Basic realm="SaleScope", charset="UTF-8"')
+      return json(response, 401, { error: '需要有效账号才能访问' })
+    }
+    failed.delete(address)
+    if (!['GET', 'HEAD', 'POST'].includes(request.method)) return json(response, 405, { error: '不支持的请求方法' })
+    if (request.method === 'POST') {
+      if (Number(request.headers['content-length']) > 12 * 1024 * 1024) return json(response, 413, { error: '上传请求超过12MB' })
+      if (!String(request.headers['content-type']).startsWith('application/json')) return json(response, 415, { error: '写入接口仅接受application/json' })
+      const expectedOrigin = publicOrigin || `http://${request.headers.host}`
+      if (request.headers.origin && request.headers.origin !== expectedOrigin) return json(response, 403, { error: '不允许跨站请求' })
+      if (busyUsers.has(user) || concurrent >= maxConcurrent) return json(response, 429, { error: '当前有分析或上传正在执行，请稍后重试' })
+      busyUsers.add(user); concurrent += 1
+      let released = false
+      const release = () => { if (!released) { released = true; busyUsers.delete(user); concurrent -= 1 } }
+      // 在处理函数结束前保留锁；客户端中断不会解除仍在执行的模型/写入操作。
+      response.taskRelease = release
+    }
+    try {
+      await withUserStorage(user, dataRoot, async () => {
+        const route = routes.find(route => pathname === route.prefix || pathname.startsWith(`${route.prefix}/`))
+        if (route) {
+          const original = request.url
+          request.url = request.url.slice(route.prefix.length) || '/'
+          let next = false
+          try { await route.handler(request, response, () => { next = true }) } finally { request.url = original }
+          if (next && !response.writableEnded) json(response, 404, { error: '资源不存在' })
+          return
+        }
+        if (pathname.startsWith('/api/') || pathname.startsWith('/charts/')) return json(response, 404, { error: '接口不存在' })
+        if (request.method === 'POST') return json(response, 404, { error: '接口不存在' })
+        let relative
+        try { relative = decodeURIComponent(pathname).replace(/^\/+/, '') } catch { return json(response, 400, { error: 'URL编码无效' }) }
+        const filename = path.resolve(distRoot, relative || 'index.html')
+        if (!filename.startsWith(`${path.resolve(distRoot)}${path.sep}`) || relative.split('/').some(part => part.startsWith('.'))) return json(response, 403, { error: '访问被拒绝' })
+        let asset = filename
+        try { if (!(await stat(asset)).isFile()) throw new Error('not a file') } catch { if (path.extname(relative)) return json(response, 404, { error: '文件不存在' }); asset = path.join(distRoot, 'index.html') }
+        response.setHeader('Content-Type', mime[path.extname(asset)] || 'application/octet-stream')
+        if (request.method === 'HEAD') return response.end()
+        const stream = createReadStream(asset)
+        stream.on('error', () => { if (!response.headersSent) json(response, 404, { error: '文件不存在' }); else response.destroy() })
+        stream.pipe(response)
+      })
+    } catch { if (!response.writableEnded) json(response, 500, { error: '服务处理失败，请检查服务端日志' }) }
+    finally { response.taskRelease?.() }
+  })
+  server.requestTimeout = 200000
+  server.headersTimeout = 15000
+  return server
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const server = createProductionServer()
+  const port = Number(process.env.PORT || 3000)
+  server.listen(port, process.env.HOST || '0.0.0.0', () => console.log(`SaleScope production listening on ${port}`))
+  const shutdown = () => { server.close(); setTimeout(() => process.exit(0), 190000).unref() }
+  process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown)
+}

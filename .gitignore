@@ -13,3 +13,7 @@ charts/
 releases/
 !versions/v1/charts/
 !versions/v1/charts/*.svg
+
+runtime-data/
+auth-users*.json
+!deploy/.env.production.example

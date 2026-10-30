@@ -96,6 +96,7 @@ test('HTML visitors receive a real login form and password errors do not create 
   const html = await page.text()
   assert.equal(page.status, 200)
   assert.ok(html.includes('aria-label="登录密码"') && html.includes('type="password"'))
+  assert.ok(html.includes('method="post" action="/api/auth/login"'))
   assert.equal((await fetch(app.origin+'/auth/login.js')).status, 200)
   const wrong = await fetch(app.origin+'/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'alice', password: 'wrong' }) })
   assert.equal(wrong.status, 401)

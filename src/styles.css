@@ -302,3 +302,6 @@ button:disabled, select:disabled { cursor: not-allowed; opacity: .6; }
 
 .change-answer p { font-size: 14px; line-height: 1.75; font-weight: 400; color: var(--body); }
 .change-answer p:first-child { font-weight: 600; color: var(--ink); }
+
+.signed-in-user { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--body); font-size: 12px; }
+@media(max-width:767px) { .topbar .top-actions { gap: 7px; } .topbar .top-actions .live-status { display:none; } .signed-in-user { max-width:48px; } .topbar .top-actions .button { min-height:44px; padding-inline:10px; white-space:nowrap; } }

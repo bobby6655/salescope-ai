@@ -86,3 +86,53 @@ test('policy uploads stay isolated through real HTTP middleware and read-only XL
   assert.ok(alice.includes('alice') && !alice.includes('bob'))
   assert.ok(bob.includes('bob') && !bob.includes('alice'))
 })
+
+test('HTML visitors receive a real login form and password errors do not create sessions', async t => {
+  const app = await setup(t)
+  const redirect = await fetch(app.origin+'/', { headers: { accept: 'text/html' }, redirect: 'manual' })
+  assert.equal(redirect.status, 303)
+  assert.equal(redirect.headers.get('location'), '/login')
+  const page = await fetch(app.origin+'/login')
+  const html = await page.text()
+  assert.equal(page.status, 200)
+  assert.ok(html.includes('aria-label="登录密码"') && html.includes('type="password"'))
+  assert.ok(html.includes('method="post" action="/api/auth/login"'))
+  assert.equal((await fetch(app.origin+'/auth/login.js')).status, 200)
+  const wrong = await fetch(app.origin+'/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'alice', password: 'wrong' }) })
+  assert.equal(wrong.status, 401)
+  assert.equal(wrong.headers.get('set-cookie'), null)
+  assert.equal((await wrong.json()).error, '账号或密码不正确')
+})
+
+test('cookie login, session persistence, account isolation and logout work without Basic headers', async t => {
+  const app = await setup(t)
+  const login = async user => {
+    const response = await fetch(app.origin+'/api/auth/login', { method: 'POST', headers: { 'content-type':'application/json' }, body: JSON.stringify({ username:user, password }) })
+    assert.equal(response.status, 200)
+    const header = response.headers.get('set-cookie')
+    assert.ok(header.includes('HttpOnly') && header.includes('SameSite=Strict'))
+    return header.split(';')[0]
+  }
+  const alice = await login('alice'), bob = await login('bob')
+  assert.notEqual(alice, bob)
+  assert.equal((await (await fetch(app.origin+'/api/auth/session', { headers:{cookie:alice} })).json()).user, 'alice')
+  assert.equal((await (await fetch(app.origin+'/api/auth/session', { headers:{cookie:bob} })).json()).user, 'bob')
+  assert.equal((await fetch(app.origin+'/', {headers:{cookie:alice}})).status, 200)
+  const logout = await fetch(app.origin+'/api/auth/logout', {method:'POST',headers:{cookie:alice,'content-type':'application/json'},body:'{}'})
+  assert.equal(logout.status, 200)
+  assert.ok(logout.headers.get('set-cookie').includes('Max-Age=0'))
+  assert.equal((await fetch(app.origin+'/api/auth/session', {headers:{cookie:alice}})).status, 401)
+  assert.equal((await fetch(app.origin+'/api/auth/session', {headers:{cookie:bob}})).status, 200)
+})
+
+test('HTTPS sessions carry Secure cookies and cross-site login/logout are rejected', async t => {
+  const app = await setup(t, { publicOrigin:'https://salescope.example' })
+  const options={method:'POST',headers:{'content-type':'application/json',origin:'https://evil.example'},body:JSON.stringify({username:'alice',password})}
+  assert.equal((await fetch(app.origin+'/api/auth/login',options)).status,403)
+  const login=await fetch(app.origin+'/api/auth/login',{...options,headers:{'content-type':'application/json',origin:'https://salescope.example'}})
+  assert.equal(login.status,200)
+  assert.ok(login.headers.get('set-cookie').includes('; Secure'))
+  const cookie=login.headers.get('set-cookie').split(';')[0]
+  assert.equal((await fetch(app.origin+'/api/auth/logout',{...options,headers:{...options.headers,cookie}})).status,403)
+  assert.equal((await fetch(app.origin+'/api/auth/session',{headers:{cookie}})).status,200)
+})

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import salesCsv from '../data/sales-data.csv?raw'
 import ordersCsv from '../data/orders-en.csv?raw'
 import adsCsv from '../data/ads-data.csv?raw'
@@ -33,6 +33,9 @@ function DataTable({ headers, rows }) {
 
 export default function AppV2() {
   const [nav, setNav] = useState(window.location.hash === '#policy' ? '政策监控' : '总览')
+  const [signedInUser, setSignedInUser] = useState('')
+  useEffect(() => { let active=true; fetch('/api/auth/session').then(response => response.ok ? response.json() : null).then(result => { if(active && result?.user)setSignedInUser(result.user) }).catch(()=>{}); return ()=>{active=false} }, [])
+  const logout = async () => { const response=await fetch('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); if(response.ok || response.status===401)window.location.assign('/login') }
   const [source, setSource] = useState(initialDataset)
   const [fileName, setFileName] = useState('sales-data.csv')
   const [types, setTypes] = useState({})
@@ -114,7 +117,7 @@ export default function AppV2() {
 
   return <div className="app-shell">
     <aside className="sidebar"><div className="brand"><div className="brand-mark">✦</div><div><strong>SaleScope V2</strong><span>UNIVERSAL DATA ANALYTICS</span></div></div><nav className="nav" aria-label="业务模块"><section className="nav-module" aria-label="基础数据分析"><p className="nav-label">基础数据分析</p>{['总览', '数据源', '分析报告', '自动评测'].map((item) => <button className={`nav-item ${nav === item ? 'active' : ''}`} aria-current={nav === item ? 'page' : undefined} key={item} onClick={() => setNav(item)}>{item}</button>)}</section><section className="nav-module policy-nav-module" aria-label="政策监控"><p className="nav-label">政策监控</p><button className={`nav-item ${nav === '政策监控' ? 'active' : ''}`} aria-current={nav === '政策监控' ? 'page' : undefined} onClick={() => setNav('政策监控')}>政策达成复盘</button></section></nav><div className="sidebar-footer"><div className="help-card"><div><b>通用表格分析</b><span>动态字段 · 本地计算 · ReAct</span></div></div></div></aside>
-    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>SaleScope V2</span><b>/</b><span>{nav === '政策监控' ? '政策监控' : '基础数据分析'}</span><b>/</b><strong>{nav === '政策监控' ? '政策达成复盘' : nav}</strong></div><span className="live-status">{pending ? '正在分析' : '数据已加载'}</span></header><div className="page-container">
+    <main className="main-content"><header className="topbar"><div className="breadcrumb"><span>SaleScope V2</span><b>/</b><span>{nav === '政策监控' ? '政策监控' : '基础数据分析'}</span><b>/</b><strong>{nav === '政策监控' ? '政策达成复盘' : nav}</strong></div><div className="top-actions"><span className="live-status">{pending ? '正在分析' : '数据已加载'}</span>{signedInUser && <><span className="signed-in-user">{signedInUser}</span><button className="button secondary" onClick={logout}>退出登录</button></>}</div></header><div className="page-container">
       <nav className="v2-mobile-nav" aria-label="移动端业务模块"><section className="mobile-nav-module" aria-label="基础数据分析"><span>基础数据分析</span><div>{['总览', '数据源', '分析报告', '自动评测'].map((item) => <button key={item} className={`button ${nav === item ? 'primary' : 'secondary'}`} onClick={() => setNav(item)}>{item}</button>)}</div></section><section className="mobile-nav-module" aria-label="政策监控"><span>政策监控</span><div><button className={`button ${nav === '政策监控' ? 'primary' : 'secondary'}`} onClick={() => setNav('政策监控')}>政策达成复盘</button></div></section></nav>
       {nav !== '政策监控' && <section className="page-heading"><div><div className="eyebrow">V2 · 通用数据分析</div><h1>{nav === '总览' ? '每张表，都能看懂。' : nav === '数据源' ? '字段与口径，由你确认。' : nav === '分析报告' ? '分析过程，可查可追问。' : '跨表结构，验证分析能力。'}</h1><p>支持动态表头、字段类型、聚合分组和多轮工具分析。</p></div><div className="heading-actions"><button className="button secondary" disabled={disabled} onClick={() => fileRef.current?.click()}>上传 CSV</button><input ref={fileRef} type="file" accept=".csv" hidden onChange={upload} /><select aria-label="选择样例数据" className="v2-select" value="" disabled={disabled} onChange={(event) => { const sample = samples[event.target.value]; if (sample) useDataset(parseCsv(sample.csv), `${event.target.value}.csv`) }}><option value="">切换样例表</option>{Object.entries(samples).map(([key, sample]) => <option key={key} value={key}>{sample.name}</option>)}</select></div></section>}
       {nav !== '政策监控' && <div className="status-strip"><div className="status-message"><span className={`status-dot ${error ? 'error-dot' : ''}`} /><span><b>{fileName}</b><small>{dataset.rows.length} 条记录 · {dataset.headers.length} 个字段 · {dataset.warnings.length ? '有数据质量提示' : '字段类型已识别'}</small></span></div><span>数值字段 {numericColumns.length} · 日期字段 {dateColumns.length}</span></div>}

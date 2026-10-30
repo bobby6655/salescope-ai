@@ -28,8 +28,12 @@ GitHub连接可能需要本人授权Vercel GitHub应用访问这个私有仓库�
 
 ## 域名
 
-计划将bobbyyang.online加入Vercel项目。DNS继续在Spaceship管理，无需为此前的Cloudflare方案更换名称服务器。
+已将bobbyyang.online加入Vercel项目，正式登录地址为https://bobbyyang.online/login；备用地址为https://bobbyyang-salescope.vercel.app/login。DNS继续在Spaceship管理，无需为此前的Cloudflare方案更换名称服务器。
 具体A/CNAME/TXT记录以Vercel对该项目实际返回的配置为准；不要照抄旧IP。
+
+2026-10-30接入时，Spaceship根域名的两条A记录为216.198.79.1和64.29.17.1，Host均为@。Vercel验证DNS正确后，初次HTTPS握手仍失败；使用Vercel托管证书签发命令完成证书配置后，HTTPS登录页与实际浏览器登录、错误提示、刷新、退出和390px检查通过。后续记录建议以Vercel当前返回值为准。
+
+public-check.yml支持上述两个固定域名和临时隧道，通过GitHub外部网络验证HTTPS、health200、匿名会话401及登录页200，不需要上传应用凭证。
 
 ## 运行限制
 

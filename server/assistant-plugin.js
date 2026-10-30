@@ -20,7 +20,7 @@ function redactError(message) {
   return key ? String(message).split(key).join('[REDACTED]') : String(message)
 }
 
-export async function callModel(messages, signal) {
+export async function callModel(messages, signal, { maxTokens = 1000 } = {}) {
   const baseUrl = readEnv('LLM_BASE_URL', readEnv('WQ_BASE_URL', 'https://wanqing-api.corp.kuaishou.com/api/gateway/v1/endpoints')).replace(/\/$/, '')
   const endpoint = `${baseUrl}${readEnv('LLM_API_PATH', readEnv('WQ_API_PATH', '/chat/completions'))}`
   const apiKey = readEnv('LLM_API_KEY', readEnv('WQ_API_KEY'))
@@ -31,7 +31,7 @@ export async function callModel(messages, signal) {
     method: 'POST',
     redirect: 'manual',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: 1000 }),
+    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: maxTokens }),
     signal,
   })
   if (!response.ok) {
@@ -51,6 +51,7 @@ export async function callModel(messages, signal) {
     throw error
   }
   const payload = await response.json()
+  if (payload?.choices?.[0]?.finish_reason === 'length') throw new Error('模型输出达到长度上限，结果不完整，请减少单次输入的规则数量后重试')
   return payload?.choices?.[0]?.message?.content ?? ''
 }
 

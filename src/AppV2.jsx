@@ -34,7 +34,7 @@ function DataTable({ headers, rows }) {
 export default function AppV2() {
   const [nav, setNav] = useState(window.location.hash === '#policy' ? '政策监控' : '总览')
   const [signedInUser, setSignedInUser] = useState('')
-  useEffect(() => { let active=true; fetch('/api/auth/session').then(response => response.ok ? response.json() : null).then(result => { if(active && result?.user)setSignedInUser(result.user) }).catch(()=>{}); return ()=>{active=false} }, [])
+  useEffect(() => { let active=true; fetch('/api/auth/session').then(response => { if(response.status===401 && import.meta.env.VITE_REQUIRE_AUTH==='true'){ window.location.replace('/login'); return null } return response.ok ? response.json() : null }).then(result => { if(active && result?.user)setSignedInUser(result.user) }).catch(()=>{}); return ()=>{active=false} }, [])
   const logout = async () => { const response=await fetch('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); if(response.ok || response.status===401)window.location.assign('/login') }
   const [source, setSource] = useState(initialDataset)
   const [fileName, setFileName] = useState('sales-data.csv')

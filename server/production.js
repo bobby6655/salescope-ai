@@ -12,9 +12,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' }
 const json = (response, status, payload) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(payload)) }
 
-export function createProductionServer({ users = JSON.parse(process.env.AUTH_USERS_JSON || '{}'), dataRoot = process.env.DATA_ROOT || path.join(root, 'runtime-data'), distRoot = path.join(root, 'dist'), publicOrigin = process.env.PUBLIC_ORIGIN || '', maxConcurrent = Number(process.env.MAX_CONCURRENT_ANALYSES || 4), routes: suppliedRoutes } = {}) {
+export function createProductionServer({ users = JSON.parse(process.env.AUTH_USERS_JSON || '{}'), dataRoot = process.env.DATA_ROOT || path.join(root, 'runtime-data'), distRoot = path.join(root, 'dist'), publicOrigin = process.env.PUBLIC_ORIGIN || '', publicOriginAliases = JSON.parse(process.env.PUBLIC_ORIGIN_ALIASES || '[]'), maxConcurrent = Number(process.env.MAX_CONCURRENT_ANALYSES || 4), routes: suppliedRoutes } = {}) {
   if (!Object.keys(users).length) throw new Error('生产服务必须配置AUTH_USERS_JSON，不能匿名开放分析接口')
   if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 32) throw new Error('MAX_CONCURRENT_ANALYSES必须为1到32的整数')
+  if (!Array.isArray(publicOriginAliases) || publicOriginAliases.some(value => { try { const url=new URL(value); return typeof value!=='string' || url.protocol!=='https:' || url.origin!==value || url.hostname.includes('*') } catch { return true } })) throw new Error('PUBLIC_ORIGIN_ALIASES需要明确的HTTPS来源数组，不能使用通配符')
   for (const [name, hash] of Object.entries(users)) if (!/^[A-Za-z0-9_.-]{1,64}$/.test(name) || !/^scrypt:[a-f0-9]{32}:[a-f0-9]{64}$/.test(hash)) throw new Error('账号名称或scrypt密码哈希格式无效')
   const routes = suppliedRoutes ?? []
   if (!suppliedRoutes) registerApiRoutes({ use: (prefix, handler) => routes.push({ prefix, handler }) })
@@ -60,12 +61,13 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
     try { pathname = new URL(request.url, 'http://localhost').pathname } catch { return json(response, 400, { error: 'URL格式无效' }) }
     if (pathname === '/api/health' && request.method === 'GET') return json(response, 200, { status: 'ok', version: '2.0.0' })
     const expectedOrigin = publicOrigin || `http://${request.headers.host}`
+    const acceptsOrigin = value => !value || value === expectedOrigin || publicOriginAliases.includes(value)
     const cookieFlags = `Path=/; HttpOnly; SameSite=Strict${expectedOrigin.startsWith('https://') ? '; Secure' : ''}`
     if (pathname === '/login' && request.method === 'GET') { response.setHeader('Content-Type', 'text/html; charset=utf-8'); return response.end(loginPage) }
     if (pathname === '/auth/login.js' && request.method === 'GET') { response.setHeader('Content-Type', 'text/javascript; charset=utf-8'); return response.end(loginScript) }
     if (pathname === '/api/auth/login' && request.method === 'POST') {
       if (!String(request.headers['content-type']).startsWith('application/json')) return json(response, 415, { error: '登录请求必须为JSON' })
-      if (request.headers.origin && request.headers.origin !== expectedOrigin) return json(response, 403, { error: '不允许跨站登录' })
+      if (!acceptsOrigin(request.headers.origin)) return json(response, 403, { error: '不允许跨站登录' })
       let body = ''
       try {
         for await (const chunk of request) { body += chunk; if (Buffer.byteLength(body) > 4096) throw new Error('too large') }
@@ -104,7 +106,7 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
     failed.delete(address)
     if (pathname === '/api/auth/session' && request.method === 'GET') return json(response, 200, { user })
     if (pathname === '/api/auth/logout' && request.method === 'POST') {
-      if (!String(request.headers['content-type']).startsWith('application/json') || (request.headers.origin && request.headers.origin !== expectedOrigin)) return json(response, 403, { error: '不允许跨站退出' })
+      if (!String(request.headers['content-type']).startsWith('application/json') || !acceptsOrigin(request.headers.origin)) return json(response, 403, { error: '不允许跨站退出' })
       sessions.delete(sessionToken(request))
       response.setHeader('Set-Cookie', `${cookieName}=; Max-Age=0; ${cookieFlags}`)
       return json(response, 200, { ok: true })
@@ -113,7 +115,7 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
     if (request.method === 'POST') {
       if (Number(request.headers['content-length']) > 12 * 1024 * 1024) return json(response, 413, { error: '上传请求超过12MB' })
       if (!String(request.headers['content-type']).startsWith('application/json')) return json(response, 415, { error: '写入接口仅接受application/json' })
-      if (request.headers.origin && request.headers.origin !== expectedOrigin) return json(response, 403, { error: '不允许跨站请求' })
+      if (!acceptsOrigin(request.headers.origin)) return json(response, 403, { error: '不允许跨站请求' })
       if (busyUsers.has(user) || concurrent >= maxConcurrent) return json(response, 429, { error: '当前有分析或上传正在执行，请稍后重试' })
       busyUsers.add(user); concurrent += 1
       let released = false

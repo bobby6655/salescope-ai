@@ -1,0 +1,7 @@
+order_id,order_date,city,product_name,revenue,cost,quantity
+001,2025-01-05,Shanghai,Headphones,1200,700,2
+002,2025-01-12,Beijing,Watch,1800,1000,3
+003,2025-02-03,Shanghai,Watch,2400,1300,4
+004,2025-02-16,Shenzhen,Speaker,600,300,1
+005,2025-03-08,Beijing,Headphones,900,500,2
+006,2025-03-18,Shanghai,Speaker,300,150,1

@@ -1,0 +1,106 @@
+{
+  "version": "v1",
+  "createdAt": "2026-10-29",
+  "excluded": [
+    ".env",
+    "node_modules",
+    "dist",
+    "登录缓存"
+  ],
+  "files": [
+    {
+      "file": "package.json",
+      "sha256": "1d62419fc5e8ee54170a0662cbad0da00a08553aca4dad2aaeede91cc1a192df"
+    },
+    {
+      "file": "package-lock.json",
+      "sha256": "b740a7e74ffa8847599b27cea81322456dcdeb81c370e96dda25e17c6b60be06"
+    },
+    {
+      "file": "vite.config.js",
+      "sha256": "825b7c404253db2b57b2c20346a3f79dcfb1d5f046023db0ee95291b943cd52e"
+    },
+    {
+      "file": "index.html",
+      "sha256": "825ba1e8f7f6ed1f6b625f0f888964fdc2a74062d5090a30bde00f94405f6a3a"
+    },
+    {
+      "file": ".env.example",
+      "sha256": "4b6ef6d2e02057eb568783f919ba6749b058a7dcd197e26c00803d4c92a3f72b"
+    },
+    {
+      "file": ".gitignore",
+      "sha256": "252d59e5f6348431e1125438a62ffe1561445900cf7b31641ca7b35b4b7bcc7c"
+    },
+    {
+      "file": "README.md",
+      "sha256": "6cf155f2a2c7ff595c5cf932d5c71be89917de3526930a6f6591f2bb19f522c3"
+    },
+    {
+      "file": "AGENTS.md",
+      "sha256": "de49d93f80eab158e987094f6263f3de53302eecedf8de9167faf777e4e559c9"
+    },
+    {
+      "file": "PROJECT_CONTEXT.md",
+      "sha256": "4f7d1410d19416aa79ffc7211a6c71a58c9f5169bce5a1ebf7eece2e4fcc7312"
+    },
+    {
+      "file": "src/chartGenerator.js",
+      "sha256": "ec9f24aae61d64bee3c2d9016560b2f4a143cc2919df5c0b5ef75111d38f5e87"
+    },
+    {
+      "file": "src/dataAnalysis.js",
+      "sha256": "3a83aacb99468ac1cdae0e47178fb862ec58ade4faef11af7cc930a7680d1a41"
+    },
+    {
+      "file": "src/evaluationCases.js",
+      "sha256": "6f9a6f495e3a52b4bd0d8b19197b51065cafc12d6ea181b08b03123182b57186"
+    },
+    {
+      "file": "src/main.jsx",
+      "sha256": "23dd1cec1e23276c1e514f5ebf385a65a15ea40ca5a73a9b5917ddf3c3a6d071"
+    },
+    {
+      "file": "src/styles.css",
+      "sha256": "a794a3401d09afba2c42d1531fcc99e6ea769e600ab2820dbfd6124d4429ba67"
+    },
+    {
+      "file": "server/agentLoop.js",
+      "sha256": "eb9c74212f343b44166e89da2c12764e0c04d45d7cc8abd49bb594ef84859333"
+    },
+    {
+      "file": "server/assistant-plugin.js",
+      "sha256": "fb3b37a856ae956248a5d92a87214245f92ec6ace926e6037b33e758ef515f91"
+    },
+    {
+      "file": "server/chartService.js",
+      "sha256": "0bae09c9374a3d45cc40ae0b7a5936754ae054ab6c70ea366a4890b0cfbfbe80"
+    },
+    {
+      "file": "server/evaluationService.js",
+      "sha256": "6709c3d38993e92dfe83bbf5351989ff39e711392215ae4c7684cacd03efc1dc"
+    },
+    {
+      "file": "scripts/agentLoop.test.mjs",
+      "sha256": "98327b84c82171c62087a5309ee26dbbf325c821607ab56b0c731f27cb45cef7"
+    },
+    {
+      "file": "scripts/check.mjs",
+      "sha256": "edb48a65b2f9c4a19f762d9c7f007d4fd730cc5ce769669c46c32583ce032c13",
+      "original_sha256": "d4630a03a4ac600abd3e0fb03888fbf0bd384f8f95fe2187a420c3995baeedc1"
+    },
+    {
+      "file": "data/sales-data.csv",
+      "sha256": "66b3777a87f34a23d27a0f1c992a1cf157934b4e7bc6d9ce70be8285f2898633"
+    },
+    {
+      "file": "charts/bar-2026-10-28T13-03-43-015Z.svg",
+      "sha256": "2c6b22135852f99208612a24798475896f1cf9c02a038d4455bc0479ca55d6a4",
+      "original_sha256": "68936315b9d1a7e013c4eca6dd634f3015abbf6212cec3e21c3f71918e5c0546"
+    }
+  ],
+  "preservationNotes": [
+    "保留程序行为；旧检查脚本中的密钥字面量改为环境变量检查",
+    "SVG 文本末尾统一换行"
+  ]
+}

@@ -54,6 +54,7 @@ test('guest analysis ignores forged rows, isolates charts and never stores perma
   const demo = parseCsv(await readFile(new URL('../data/sales-data.csv', import.meta.url), 'utf8'))
   assert.equal(result.rows[0].value, demo.rows.length)
   assert.equal(result.historyId, undefined)
+  assert.equal(result.chart.filePath, undefined)
   assert.ok(result.chart.publicPath.startsWith('/api/demo/charts/'))
   assert.equal((await app.request(result.chart.publicPath, { user: null, cookie })).status, 200)
   assert.equal((await app.request(result.chart.publicPath, { user: null, cookie: other })).status, 404)

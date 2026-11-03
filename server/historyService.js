@@ -29,6 +29,7 @@ export async function saveHistory({ module, kind = 'analysis', question, result,
 }
 
 export async function attachHistory(result, metadata) {
+  if (storageIdentity()?.kind === 'guest') { if (result.chart) delete result.chart.filePath; return result }
   try { const id = await saveHistory({ ...metadata, result }); if (id) result.historyId = id }
   catch { result.historyWarning = '结论已生成，但历史保存失败，请先下载或复制结果后再重试' }
   return result

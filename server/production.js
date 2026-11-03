@@ -1,11 +1,11 @@
 import http from 'node:http'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, readdir, rm } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { scryptSync, timingSafeEqual, createHash, randomBytes } from 'node:crypto'
 import { registerApiRoutes } from './assistant-plugin.js'
-import { withUserStorage } from './storageContext.js'
+import { withUserStorage, withGuestStorage } from './storageContext.js'
 import { loginPage, loginScript } from './loginPage.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -21,6 +21,9 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
   if (!suppliedRoutes) registerApiRoutes({ use: (prefix, handler) => routes.push({ prefix, handler }) })
   const authenticated = new Map()
   const sessions = new Map()
+  const guests = new Map(), guestRates = new Map()
+  let guestConcurrent = 0
+  const guestCookie = 'salescope_guest', guestAge = 2 * 60 * 60 * 1000
   const cookieName = 'salescope_session'
   const sessionAge = 12 * 60 * 60
   const busyUsers = new Set()
@@ -33,7 +36,8 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
     const [, salt, digest] = hash.split(':')
     return timingSafeEqual(scryptSync(password, salt, 32), Buffer.from(digest, 'hex'))
   }
-  const sessionToken = request => String(request.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1)
+  const cookieToken = (request, name) => String(request.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith(`${name}=`))?.slice(name.length + 1)
+  const sessionToken = request => cookieToken(request, cookieName)
   const authenticate = (request) => {
     const token = sessionToken(request)
     const session = sessions.get(token)
@@ -89,11 +93,43 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
         return json(response, 200, { ok: true, user: username })
       } catch { return json(response, 400, { error: '登录请求格式无效' }) }
     }
-    const address = request.socket.remoteAddress || 'unknown'
+    const demoRoute = pathname.startsWith('/api/demo/'), address = request.socket.remoteAddress || 'unknown'
+    let guest, effectivePath = pathname
+    if (demoRoute) {
+      const allowed = request.method === 'POST' && ['/api/demo/session', '/api/demo/assistant', '/api/demo/policy/question'].includes(pathname) || request.method === 'GET' && ['/api/demo/session', '/api/demo/policy/current', '/api/demo/policy/export'].includes(pathname) || request.method === 'GET' && /^\/api\/demo\/charts\/[A-Za-z0-9_.-]+\.svg$/.test(pathname)
+      if (!allowed) return json(response, 403, { error: '游客只能查看和分析模拟数据；上传、规则修改与历史需要登录' })
+      if (request.method === 'POST' && (!String(request.headers['content-type']).startsWith('application/json') || !acceptsOrigin(request.headers.origin))) return json(response, 403, { error: '不允许跨站游客请求' })
+      if (Number(request.headers['content-length']) > 64000) return json(response, 413, { error: '游客请求过大' })
+      const now = Date.now(), token = cookieToken(request, guestCookie)
+      guest = guests.get(token)
+      if (guest?.expires <= now) { guests.delete(token); guest = null }
+      if (pathname === '/api/demo/session') {
+        if (!guest) {
+          if (request.method !== 'POST') return json(response, 401, { error: '游客会话已过期，请刷新页面' })
+          for (const [key, value] of guests) if (value.expires <= now) guests.delete(key)
+          let rate = guestRates.get(address)
+          if (!rate || rate.expires <= now) { rate = { creates: 0, queries: 0, expires: now + 3600000 }; guestRates.set(address, rate) }
+          if (rate.creates >= 30 || guests.size >= 1000) return json(response, 429, { error: '游客体验请求较多，请稍后重试或登录' })
+          rate.creates += 1
+          const id = randomBytes(32).toString('hex')
+          guest = { id, expires: now + guestAge, queries: 0 }; guests.set(id, guest)
+          response.setHeader('Set-Cookie', `${guestCookie}=${id}; Max-Age=7200; ${cookieFlags}`)
+        }
+        return json(response, 200, { kind: 'guest', expiresAt: new Date(guest.expires).toISOString() })
+      }
+      if (!guest) return json(response, 401, { error: '游客会话已过期，请刷新页面' })
+      effectivePath = pathname.replace('/api/demo/charts', '/charts').replace('/api/demo/', '/api/')
+      if (request.method === 'POST') {
+        let rate = guestRates.get(address)
+        if (!rate || rate.expires <= now) { rate = { creates: 0, queries: 0, expires: now + 3600000 }; guestRates.set(address, rate) }
+        if (guest.queries >= 10 || rate.queries >= 30 || guestConcurrent >= 2) return json(response, 429, { error: '游客分析额度或并发已达上限，请稍后重试或登录' })
+        // 每会话最多10次，按连接来源再限制每小时30次；配额只在任务被接受时扣除。
+      }
+    }
     const attempts = failed.get(address)
     const user = authenticate(request)
-    if (!user) {
-      if (request.method === 'GET' && String(request.headers.accept).includes('text/html') && !pathname.startsWith('/api/') && !pathname.startsWith('/charts/')) { response.statusCode = 303; response.setHeader('Location', '/login'); return response.end() }
+    const publicPage = ['GET', 'HEAD'].includes(request.method) && !pathname.startsWith('/api/') && !pathname.startsWith('/charts/')
+    if (!user && (request.headers.authorization || !guest && !publicPage)) {
       if (request.headers.authorization) {
         if (attempts && attempts.count >= 10 && attempts.until > Date.now()) return json(response, 429, { error: '登录尝试过多，请稍后重试' })
         if (failed.size > 1000) failed.clear()
@@ -116,19 +152,22 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
       if (Number(request.headers['content-length']) > 12 * 1024 * 1024) return json(response, 413, { error: '上传请求超过12MB' })
       if (!String(request.headers['content-type']).startsWith('application/json')) return json(response, 415, { error: '写入接口仅接受application/json' })
       if (!acceptsOrigin(request.headers.origin)) return json(response, 403, { error: '不允许跨站请求' })
-      if (busyUsers.has(user) || concurrent >= maxConcurrent) return json(response, 429, { error: '当前有分析或上传正在执行，请稍后重试' })
-      busyUsers.add(user); concurrent += 1
+      const principal = guest ? `guest:${guest.id}` : user
+      if (busyUsers.has(principal) || concurrent >= maxConcurrent) return json(response, 429, { error: '当前有分析或上传正在执行，请稍后重试' })
+      busyUsers.add(principal); concurrent += 1
+      if (guest) { guest.queries += 1; guestRates.get(address).queries += 1; guestConcurrent += 1 }
       let released = false
-      const release = () => { if (!released) { released = true; busyUsers.delete(user); concurrent -= 1 } }
+      const release = () => { if (!released) { released = true; busyUsers.delete(principal); concurrent -= 1; if (guest) guestConcurrent -= 1 } }
       // 在处理函数结束前保留锁；客户端中断不会解除仍在执行的模型/写入操作。
       response.taskRelease = release
     }
     try {
-      await withUserStorage(user, dataRoot, async () => {
-        const route = routes.find(route => pathname === route.prefix || pathname.startsWith(`${route.prefix}/`))
+      const scope = callback => guest ? withGuestStorage(guest.id, dataRoot, callback) : withUserStorage(user || '__public_static__', dataRoot, callback)
+      await scope(async () => {
+        const route = routes.find(route => effectivePath === route.prefix || effectivePath.startsWith(`${route.prefix}/`))
         if (route) {
           const original = request.url
-          request.url = request.url.slice(route.prefix.length) || '/'
+          request.url = effectivePath.slice(route.prefix.length) + (new URL(original, 'http://localhost').search || '') || '/'
           let next = false
           try { await route.handler(request, response, () => { next = true }) } finally { request.url = original }
           if (next && !response.writableEnded) json(response, 404, { error: '资源不存在' })
@@ -152,6 +191,19 @@ export function createProductionServer({ users = JSON.parse(process.env.AUTH_USE
     finally { response.taskRelease?.() }
   })
   server.requestTimeout = 200000
+  const cleanup = setInterval(async () => {
+    const now = Date.now()
+    for (const [key, value] of guestRates) if (value.expires < now) guestRates.delete(key)
+    for (const [key, value] of guests) if (value.expires < now && !busyUsers.has(`guest:${key}`)) guests.delete(key)
+    try {
+      const directory = path.join(dataRoot, 'guests')
+      for (const entry of await readdir(directory, { withFileTypes: true })) if (entry.isDirectory() && /^[a-f0-9]{64}$/.test(entry.name) && !busyUsers.has(`guest:${entry.name}`)) {
+        const location = path.join(directory, entry.name)
+        if (!guests.has(entry.name) && now - (await stat(location)).mtimeMs > guestAge) await rm(location, { recursive: true, force: true })
+      }
+    } catch {}
+  }, 60000)
+  cleanup.unref(); server.on('close', () => clearInterval(cleanup))
   server.headersTimeout = 15000
   return server
 }

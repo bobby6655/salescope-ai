@@ -92,7 +92,7 @@ async function applyRelease(target, url) {
     throw error
   }
   await save({ ...previous, ...target, appPid, url, previous: previous.directory ? { sha: previous.sha, directory: previous.directory } : null })
-  if (process.platform === 'darwin') await detached('/usr/bin/caffeinate', ['-i', '-w', String(appPid)], home, path.join(home, 'awake.log'))
+  if (process.platform === 'darwin') await detached('/usr/bin/caffeinate', ['-s', '-w', String(appPid)], home, path.join(home, 'awake.log'))
 }
 await mkdir(home, { recursive: true })
 if (command === 'status') {

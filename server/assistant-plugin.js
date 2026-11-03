@@ -4,6 +4,11 @@ import { saveChart, serveChart } from './chartService.js'
 import { saveEvaluation } from './evaluationService.js'
 import { runAgentLoop } from './agentLoop.js'
 import { policyMiddleware } from './policyService.js'
+import { attachHistory, historyMiddleware } from './historyService.js'
+import { storageIdentity } from './storageContext.js'
+import { readFile } from 'node:fs/promises'
+import { parseCsv } from '../src/datasetEngine.js'
+import { createHash } from 'node:crypto'
 
 try {
   process.loadEnvFile?.()
@@ -79,8 +84,9 @@ async function makeChart(question, plan, computed, agentSteps) {
 
 export const modelSource = () => readEnv('LLM_BASE_URL') ? 'openai-compatible' : 'wanqing'
 
-export function registerApiRoutes(middlewares) {
-      middlewares.use('/api/policy', policyMiddleware(callModel, redactError, modelSource))
+export function registerApiRoutes(middlewares, { modelCall = callModel } = {}) {
+      middlewares.use('/api/history', historyMiddleware)
+      middlewares.use('/api/policy', policyMiddleware(modelCall, redactError, modelSource))
       middlewares.use('/api/assistant', async (request, response) => {
         if (request.method !== 'POST') {
           response.statusCode = 405
@@ -91,7 +97,7 @@ export function registerApiRoutes(middlewares) {
         const started = Date.now()
         const agentSteps = []
         try {
-          const body = await new Promise((resolve, reject) => {
+          let body = await new Promise((resolve, reject) => {
             let payload = ''
             let exceeded = false
             request.on('data', (chunk) => {
@@ -109,6 +115,13 @@ export function registerApiRoutes(middlewares) {
             request.on('error', () => reject(new Error('请求读取失败')))
           })
 
+          if (storageIdentity()?.kind === 'guest') {
+            const files = { sales: 'sales-data.csv', orders: 'orders-en.csv', ads: 'ads-data.csv' }
+            const sample = Object.hasOwn(files, body.sample) ? body.sample : 'sales'
+            const dataset = parseCsv(await readFile(new URL(`../data/${files[sample]}`, import.meta.url), 'utf8'))
+            body = { question: body.question, history: body.history, rows: dataset.rawRows, headers: dataset.headers }
+          }
+
           const question = String(body.question ?? '').trim()
           const history = Array.isArray(body.history) ? body.history.slice(-10).filter((message) => ['user', 'assistant'].includes(message?.role)).map((message) => ({ role: message.role, content: String(message.content).slice(0, 3000) })) : []
           const rows = Array.isArray(body.rows) ? body.rows : []
@@ -121,7 +134,7 @@ export function registerApiRoutes(middlewares) {
           let result = null
           let source = modelSource()
           try {
-            const completed = await runAgentLoop({ question, rows, headers, bindings, types, history, callModel, saveChart, agentSteps, redact: redactError })
+            const completed = await runAgentLoop({ question, rows, headers, bindings, types, history, callModel: modelCall, saveChart, agentSteps, redact: redactError })
             result = { ...completed, aiMode: true, source, question, agentSteps, steps: agentSteps.map((step) => `${step.title}：${step.result}`), totalSteps: agentSteps.length, elapsedMs: Date.now() - started }
           } catch (error) {
             if (!/true|1/i.test(readEnv('WQ_DEMO_FALLBACK', 'true'))) throw error
@@ -183,6 +196,7 @@ export function registerApiRoutes(middlewares) {
             }
           }
 
+          if (body.purpose !== 'evaluation') await attachHistory(result, { module: 'basic', question, requestId: body.requestId, dataset: { name: String(body.datasetName || '上传数据').slice(0, 200), headers, rowCount: rows.length, fingerprint: createHash('sha256').update(JSON.stringify({ rows, headers, types, bindings })).digest('hex') } })
           response.setHeader('Content-Type', 'application/json; charset=utf-8')
           response.end(JSON.stringify(result))
         } catch (error) {

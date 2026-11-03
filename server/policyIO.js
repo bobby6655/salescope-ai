@@ -1,4 +1,4 @@
-import { storageDirectory, atomicWrite } from './storageContext.js'
+import { storageDirectory, atomicWrite, storageIdentity } from './storageContext.js'
 import { execFile } from 'node:child_process'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -27,6 +27,7 @@ export async function savePolicyInput(input) {
 }
 
 export async function readPolicyInput() {
+  if (storageIdentity()?.kind === 'guest') return JSON.parse(await readFile(path.join(policyRoot, 'data/policy-demo.json'), 'utf8'))
   try { return JSON.parse(await readFile(path.join(storageDirectory('policy-data'), 'latest.json'), 'utf8')) } catch (error) {
     if (error.code === 'ENOENT') return JSON.parse(await readFile(path.join(policyRoot, 'data/policy-demo.json'), 'utf8'))
     throw error

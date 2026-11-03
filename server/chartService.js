@@ -1,4 +1,4 @@
-import { storageDirectory } from './storageContext.js'
+import { storageDirectory, storageIdentity } from './storageContext.js'
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
@@ -23,7 +23,7 @@ async function writeChartFile({ type, title, rows, metric, operation }) {
     fileName,
     filePath,
     relativePath: `charts/${fileName}`,
-    publicPath: `/charts/${fileName}`,
+    publicPath: `${storageIdentity()?.kind === 'guest' ? '/api/demo/charts' : '/charts'}/${fileName}`,
     bytes: Buffer.byteLength(svg, 'utf8'),
   }
 }

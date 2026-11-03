@@ -305,3 +305,18 @@ button:disabled, select:disabled { cursor: not-allowed; opacity: .6; }
 
 .signed-in-user { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--body); font-size: 12px; }
 @media(max-width:767px) { .topbar .top-actions { gap: 7px; } .topbar .top-actions .live-status { display:none; } .signed-in-user { max-width:48px; } .topbar .top-actions .button { min-height:44px; padding-inline:10px; white-space:nowrap; } }
+/* Guest identity and account history reuse the existing dashboard tokens. */
+.history-filters { display: flex; flex-wrap: wrap; gap: 16px; }
+.history-filters label { display: grid; gap: 8px; flex: 1 1 180px; font-size: 13px; color: var(--body); }
+.history-filters input, .history-filters select { min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: white; font: inherit; }
+.history-title { border: 0; background: transparent; color: var(--blue); cursor: pointer; padding: 8px 0; text-align: left; font: inherit; max-width: 460px; white-space: normal; overflow-wrap: anywhere; }
+.history-preview { color: var(--body); font-size: 12px; max-width: 460px; white-space: normal; overflow-wrap: anywhere; }
+.history-detail { overflow-wrap: anywhere; }
+.history-detail .heading-actions { margin: 18px 0; flex-wrap: wrap; }
+.history-detail pre { max-height: 360px; overflow: auto; font-size: 12px; }
+.history-confirm { padding: 16px; margin-top: 16px; border: 1px solid var(--line); background: var(--page); border-radius: 6px; }
+.history-pages { margin-top: 16px; align-items: center; }
+.history-saved { color: var(--green); font-size: 13px; }
+.history-filters input:focus-visible, .history-filters select:focus-visible, .history-title:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.top-actions a.button { text-decoration: none; }
+@media (max-width: 480px) { .history-panel .panel-heading { align-items: flex-start; flex-wrap: wrap; gap: 12px; } .history-detail .heading-actions a { min-height: 44px; } }

@@ -9,7 +9,7 @@ input{display:block;width:100%;min-height:46px;padding:12px;border:1px solid var
 </style></head><body><main><header><div class="brand">SaleScope AI</div><h1>登录你的分析工作台</h1><p>使用已有账号登录，查看和分析你的数据。</p></header>
 <form id="login-form" method="post" action="/api/auth/login"><label for="username">账号</label><input id="username" name="username" autocomplete="username" required maxlength="64" autofocus aria-label="登录账号">
 <label for="password">密码</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256" aria-label="登录密码">
-<button id="submit" type="submit">登录</button><p class="error" id="error" role="alert" aria-live="polite"></p></form><footer>账号由工作台管理员提供。不同账号的数据独立保存。</footer></main><script src="/auth/login.js" defer></script></body></html>`
+<button id="submit" type="submit">登录</button><p class="error" id="error" role="alert" aria-live="polite"></p></form><p style="margin-top:16px;text-align:center"><a href="/" style="color:#3B6CF4">游客体验 · 无需登录</a></p><footer>账号由工作台管理员提供。不同账号的数据独立保存。</footer></main><script src="/auth/login.js" defer></script></body></html>`
 
 export const loginScript = `
 const form=document.getElementById('login-form');

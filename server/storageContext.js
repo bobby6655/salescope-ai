@@ -7,10 +7,12 @@ import { fileURLToPath } from 'node:url'
 const context = new AsyncLocalStorage()
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export function withUserStorage(user, directory, callback) {
-  return context.run({ user, directory: path.join(directory, createHash('sha256').update(user).digest('hex')) }, callback)
+  return context.run({ user, kind: 'user', directory: path.join(directory, createHash('sha256').update(user).digest('hex')) }, callback)
 }
+export function withGuestStorage(id, directory, callback) { return context.run({ kind: 'guest', directory: path.join(directory, 'guests', id) }, callback) }
+export const storageIdentity = () => context.getStore()
 export function storageDirectory(kind) {
-  if (!['policy-data', 'policy-reports', 'charts', 'evaluations'].includes(kind)) throw new Error('不支持的存储类型')
+  if (!['policy-data', 'policy-reports', 'charts', 'evaluations', 'history'].includes(kind)) throw new Error('不支持的存储类型')
   return path.join(context.getStore()?.directory ?? root, kind)
 }
 export async function atomicWrite(filename, content) {

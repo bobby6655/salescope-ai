@@ -37,15 +37,15 @@ export default function AppV2() {
   useEffect(() => { window.history.replaceState(null, '', nav === '政策监控' ? '#policy' : nav === '历史分析' ? '#history' : window.location.pathname) }, [nav])
   const [signedInUser, setSignedInUser] = useState('')
   const [guest, setGuest] = useState(false)
-  const [authReady, setAuthReady] = useState(import.meta.env.VITE_REQUIRE_AUTH !== 'true')
+  const [authReady, setAuthReady] = useState(false)
   const [authError, setAuthError] = useState('')
   useEffect(() => {
     let active = true
     const init = async () => {
       try {
         const response = await fetch('/api/auth/session')
-        if (response.ok) { const result = await response.json(); if (active) setSignedInUser(result.user) }
-        else if (response.status === 401 && import.meta.env.VITE_REQUIRE_AUTH === 'true') {
+        if (response.ok && response.headers.get('content-type')?.includes('application/json')) { const result = await response.json(); if (active) setSignedInUser(result.user) }
+        else if (response.status === 401) {
           const demo = await fetch('/api/demo/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
           const result = await demo.json(); if (!demo.ok) throw new Error(result.error)
           if (active) setGuest(true)

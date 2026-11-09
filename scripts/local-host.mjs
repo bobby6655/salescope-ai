@@ -66,6 +66,10 @@ async function release() {
   const tar = execFileSync('git', ['archive', '--format=tar', sha], { cwd: repository, maxBuffer: 32 * 1024 * 1024 })
   execFileSync('tar', ['-xf', '-', '-C', directory], { input: tar })
   console.log(`验证Git版本 ${sha.slice(0, 7)}`)
+  const v3Python = path.join(home, 'v3-python/bin/python')
+  if (existsSync(path.join(directory, 'scripts/setup-v3.mjs'))) execFileSync(process.execPath, [path.join(directory, 'scripts/setup-v3.mjs')], { cwd: directory, env: { ...cleanEnv, V3_VENV: path.join(home, 'v3-python') }, stdio: 'inherit' })
+  cleanEnv.V3_PYTHON = v3Python
+  if (existsSync(path.join(directory, 'scripts/check-v3.mjs'))) execFileSync(process.execPath, [path.join(directory, 'scripts/check-v3.mjs')], { cwd: directory, env: cleanEnv, stdio: 'inherit' })
   for (const args of [['ci', '--registry=https://npm.corp.kuaishou.com/'], ['test'], ['run', 'check'], ['run', 'build']]) execFileSync('npm', args, { cwd: directory, env: cleanEnv, stdio: 'inherit' })
   return { sha, directory }
 }
@@ -73,7 +77,7 @@ async function startApp(directory) {
   let occupied = false
   try { await fetch('http://127.0.0.1:5310/api/health', { signal: AbortSignal.timeout(800) }); occupied = true } catch {}
   if (occupied) throw new Error('5310端口已由其他进程占用，不覆盖已有服务')
-  const pid = await detached(process.execPath, [`--env-file=${envFile}`, path.join(directory, 'server/production.js')], directory, path.join(home, 'server.log'))
+  const pid = await detached(process.execPath, [`--env-file=${envFile}`, path.join(directory, 'server/production.js')], directory, path.join(home, 'server.log'), { V3_PYTHON: path.join(home, 'v3-python/bin/python') })
   for (let i = 0; i < 60; i++) {
     if (!alive(pid)) throw new Error('服务启动失败，请检查server.log')
     try { if ((await fetch('http://127.0.0.1:5310/api/health', { signal: AbortSignal.timeout(1000) })).ok) return pid } catch {}

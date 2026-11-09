@@ -11,17 +11,19 @@ COPY data ./data
 RUN npm run build && npm prune --omit=dev
 
 FROM node:22-bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends python3 ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY package.json ./
 COPY server ./server
+COPY data ./data
+RUN python3 -m venv /opt/v3-python && /opt/v3-python/bin/pip install --no-cache-dir -r server/v3/requirements.lock
 COPY src ./src
 COPY scripts/read-xlsx.py ./scripts/read-xlsx.py
 RUN mkdir -p /var/lib/salescope && chown node:node /var/lib/salescope
-ENV NODE_ENV=production PORT=3000 DATA_ROOT=/var/lib/salescope WQ_DEMO_FALLBACK=false
+ENV NODE_ENV=production PORT=3000 DATA_ROOT=/var/lib/salescope WQ_DEMO_FALLBACK=false V3_PYTHON=/opt/v3-python/bin/python
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=20s --timeout=5s --start-period=15s --retries=3 \

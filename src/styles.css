@@ -320,3 +320,11 @@ button:disabled, select:disabled { cursor: not-allowed; opacity: .6; }
 .history-filters input:focus-visible, .history-filters select:focus-visible, .history-title:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .top-actions a.button { text-decoration: none; }
 @media (max-width: 480px) { .history-panel .panel-heading { align-items: flex-start; flex-wrap: wrap; gap: 12px; } .history-detail .heading-actions a { min-height: 44px; } }
+.preparation-panel section > label { display: block; margin: 14px 0; font-size: 13px; }
+.preparation-panel input:not([type=checkbox]):not([type=file]), .preparation-panel select { min-height: 44px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: white; font: inherit; max-width: 100%; }
+.preparation-panel .heading-actions { flex-wrap: wrap; margin: 16px 0; }
+.preparation-panel details { margin: 16px 0; }
+.preparation-columns { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.preparation-columns label { display: flex; align-items: center; gap: 6px; min-height: 44px; }
+.preparation-panel p, .preparation-panel .v2-alert { overflow-wrap: anywhere; }
+.preparation-panel input:focus-visible, .preparation-panel select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }

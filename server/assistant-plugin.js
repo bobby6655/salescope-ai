@@ -9,6 +9,7 @@ import { storageIdentity } from './storageContext.js'
 import { readFile } from 'node:fs/promises'
 import { parseCsv } from '../src/datasetEngine.js'
 import { createHash } from 'node:crypto'
+import { workspaceMiddleware, readDataVersion, runDataWorker } from './workspaceService.js'
 
 try {
   process.loadEnvFile?.()
@@ -89,6 +90,7 @@ async function makeChart(question, plan, computed, agentSteps) {
 export const modelSource = () => readEnv('LLM_BASE_URL') ? 'openai-compatible' : 'wanqing'
 
 export function registerApiRoutes(middlewares, { modelCall = callModel } = {}) {
+      middlewares.use('/api/workspaces', workspaceMiddleware(modelCall))
       middlewares.use('/api/history', historyMiddleware)
       middlewares.use('/api/policy', policyMiddleware(modelCall, redactError, modelSource))
       middlewares.use('/api/assistant', async (request, response) => {
@@ -125,6 +127,12 @@ export function registerApiRoutes(middlewares, { modelCall = callModel } = {}) {
             const dataset = parseCsv(await readFile(new URL(`../data/${files[sample]}`, import.meta.url), 'utf8'))
             body = { question: body.question, history: body.history, rows: dataset.rawRows, headers: dataset.headers }
           }
+          let activeVersion
+          if (body.versionId && storageIdentity()?.kind !== 'guest') {
+            const version = await readDataVersion(body.versionId)
+            activeVersion = version
+            body = { ...body, rows: version.table.rows, headers: version.table.headers, datasetName: version.name, dataFingerprint: version.fingerprint, types: Object.fromEntries(version.table.quality.columns.map(column => [column.name, column.type])), bindings: {} }
+          }
 
           const question = String(body.question ?? '').trim()
           const history = Array.isArray(body.history) ? body.history.slice(-10).filter((message) => ['user', 'assistant'].includes(message?.role)).map((message) => ({ role: message.role, content: String(message.content).slice(0, 3000) })) : []
@@ -138,7 +146,14 @@ export function registerApiRoutes(middlewares, { modelCall = callModel } = {}) {
           let result = null
           let source = modelSource()
           try {
-            const completed = await runAgentLoop({ question, rows, headers, bindings, types, history, callModel: modelCall, saveChart, agentSteps, redact: redactError })
+            const extraTools = activeVersion ? { query_workspace: async action => {
+              const computed = await runDataWorker({ action: 'query', table: activeVersion.table, plan: action.plan })
+              const metric = computed.measures[0]
+              const values = computed.table.map(row => ({ label: row.dimensions.join(' × ') || '全部记录', value: row.values[metric] }))
+              return { rows: values, table: computed.table, measures: computed.measures.map(alias => ({ alias, unit: 'number' })), dimensions: computed.groupBy.map(column => ({ column })), value: values[0]?.value, metric, unit: 'number', operation: 'group', query: action.plan, answer: computed.table.map(row => `${row.dimensions.join(' × ') || '全部记录'}：${Object.entries(row.values).map(([key, value]) => `${key}=${value ?? '空值'}`).join('；')}`).join('\n'), evidence: `DuckDB查询确认数据版本${activeVersion.id}；粒度：${activeVersion.recordGrain}；${rows.length}条输入，${computed.table.length}组结果。` }
+            } } : {}
+            const extraPrompt = activeVersion ? '当前数据是用户确认的V3工作区版本。新增query_workspace工具：{"action":"query_workspace","plan":{"group_by":["字段1","字段2","字段3"],"measures":[{"column":"数值字段","aggregate":"sum|avg|count|count_distinct|min|max","alias":"指标"}],"filters":[],"order":null,"limit":null}}。DuckDB执行受控查询，最多8个分组字段和8个指标，不输出任意SQL。筛选支持equals/not_equals/gt/gte/lt/lte/between/in/is_null。用户仅问合计/总和时group_by=[]、filters=[]、limit=null，除非用户明确指定范围；不得自动按客户分组或取最大值代替总和。简单查询可沿用query_data；变化问题必须使用analyze_change。所有工具结果有result_id可绘图和finish。' : ''
+            const completed = await runAgentLoop({ question, rows, headers, bindings, types, history, callModel: modelCall, saveChart, agentSteps, redact: redactError, extraTools, extraPrompt })
             result = { ...completed, aiMode: true, source, question, agentSteps, steps: agentSteps.map((step) => `${step.title}：${step.result}`), totalSteps: agentSteps.length, elapsedMs: Date.now() - started }
           } catch (error) {
             if (!/true|1/i.test(readEnv('WQ_DEMO_FALLBACK', 'true'))) throw error
@@ -200,7 +215,7 @@ export function registerApiRoutes(middlewares, { modelCall = callModel } = {}) {
             }
           }
 
-          if (body.purpose !== 'evaluation') await attachHistory(result, { module: 'basic', question, requestId: body.requestId, dataset: { name: String(body.datasetName || '上传数据').slice(0, 200), headers, rowCount: rows.length, fingerprint: createHash('sha256').update(JSON.stringify({ rows, headers, types, bindings })).digest('hex') } })
+          if (body.purpose !== 'evaluation') await attachHistory(result, { module: 'basic', question, requestId: body.requestId, dataset: { name: String(body.datasetName || '上传数据').slice(0, 200), versionId: body.versionId, headers, rowCount: rows.length, fingerprint: body.dataFingerprint || createHash('sha256').update(JSON.stringify({ rows, headers, types, bindings })).digest('hex') } })
           response.setHeader('Content-Type', 'application/json; charset=utf-8')
           response.end(JSON.stringify(result))
         } catch (error) {

@@ -17,6 +17,9 @@
     "check:policy-browser": "node scripts/policy-browser-check.mjs",
     "check:change-browser": "node scripts/change-browser-check.mjs",
     "check:guest-history-browser": "VITE_REQUIRE_AUTH=true npm run build && node scripts/guest-history-browser-check.mjs",
+    "setup:v3": "node scripts/setup-v3.mjs",
+    "check:v3": "node scripts/check-v3.mjs",
+    "check:v3-browser": "npm run build && node scripts/v3-browser-check.mjs",
     "start": "node server/production.js"
   },
   "dependencies": {

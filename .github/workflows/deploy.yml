@@ -17,6 +17,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install V3 data dependencies
+        run: |
+          python -m pip install -r server/v3/requirements.lock
+          echo "V3_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+      - run: python scripts/v3_worker_test.py
       - name: Install public dependencies with integrity checks
         run: |
           node -e "const fs=require('fs');let s=fs.readFileSync('package-lock.json','utf8').replaceAll('https://npm.corp.kuaishou.com/','https://registry.npmjs.org/');fs.writeFileSync('package-lock.json',s)"

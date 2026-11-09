@@ -12,7 +12,7 @@ export function withUserStorage(user, directory, callback) {
 export function withGuestStorage(id, directory, callback) { return context.run({ kind: 'guest', directory: path.join(directory, 'guests', id) }, callback) }
 export const storageIdentity = () => context.getStore()
 export function storageDirectory(kind) {
-  if (!['policy-data', 'policy-reports', 'charts', 'evaluations', 'history'].includes(kind)) throw new Error('不支持的存储类型')
+  if (!['policy-data', 'policy-reports', 'charts', 'evaluations', 'history', 'workspaces'].includes(kind)) throw new Error('不支持的存储类型')
   return path.join(context.getStore()?.directory ?? root, kind)
 }
 export async function atomicWrite(filename, content) {

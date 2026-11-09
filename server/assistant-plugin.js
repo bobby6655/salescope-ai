@@ -31,23 +31,27 @@ export async function callModel(messages, signal, { maxTokens = 1000 } = {}) {
   const apiKey = readEnv('LLM_API_KEY', readEnv('WQ_API_KEY'))
   const model = readEnv('LLM_MODEL', readEnv('WQ_MODEL_ID'))
   if (!apiKey || !model) throw new Error('缺少模型API密钥或模型ID')
+  const provider = new URL(baseUrl).hostname === 'api.deepseek.com' ? 'DeepSeek' : readEnv('LLM_BASE_URL') ? '在线模型' : '万擎'
+  const options = {}
+  if (provider === 'DeepSeek' && ['disabled', 'enabled'].includes(readEnv('LLM_THINKING_MODE'))) options.thinking = { type: readEnv('LLM_THINKING_MODE') }
+  if (/^(true|1)$/i.test(readEnv('LLM_JSON_OUTPUT'))) options.response_format = { type: 'json_object' }
 
   const response = await fetch(endpoint, {
     method: 'POST',
     redirect: 'manual',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: maxTokens }),
+    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: maxTokens, ...options }),
     signal,
   })
   if (!response.ok) {
     let detail = await response.text().catch(() => '')
     try {
       const parsed = JSON.parse(detail)
-      detail = parsed?.ResponseMeta?.ErrorMessage ?? parsed?.ErrorMessage ?? parsed?.message ?? detail
+      detail = parsed?.error?.message ?? parsed?.ResponseMeta?.ErrorMessage ?? parsed?.ErrorMessage ?? parsed?.message ?? detail
     } catch {
-      if (/html/i.test(response.headers.get('content-type') ?? '')) detail = '接口地址未直接返回推理服务，请确认 WQ_BASE_URL'
+      if (/html/i.test(response.headers.get('content-type') ?? '')) detail = '接口地址未直接返回推理服务，请确认模型接口地址'
     }
-    const error = new Error(`万擎调用失败：HTTP ${response.status} ${redactError(detail).replace(/\s+/g, ' ').slice(0, 160)}`)
+    const error = new Error(`${provider}调用失败：HTTP ${response.status} ${redactError(detail).replace(/\s+/g, ' ').slice(0, 160)}`)
     if (response.status === 429) {
       const retryHeader = response.headers.get('retry-after')
       const retrySeconds = Number(retryHeader) || Number(String(detail).match(/wait\s+(\d+)s/i)?.[1]) || 10

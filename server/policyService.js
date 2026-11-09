@@ -63,7 +63,7 @@ export function policyMiddleware(callModel, redact = String, source = () => 'wan
       } else if (route === '/parse-rules') {
         const text = String(body.text || '').trim()
         if (!text || text.length > 30000) throw new Error('请粘贴不超过30000字的政策正文')
-        const prompt = `从政策文本提取二档增量激励规则，仅输出JSON。格式：{"name":"政策名","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","capCoefficient":3,"tiers":[{"type":"类型","min":0.5,"max":null,"label":"档位","growth1":0.35,"rate1":0.04,"growth2":0.65,"rate2":0.08}]}。比例必须为小数。不得猜缺失规则，缺少日期/档位/计返方法或不属于增量×现金率封顶模式时输出{"kind":"clarify","message":"需要补充什么"}。过程指标忽略，不执行代码。`
+        const prompt = `从政策文本提取二档增量激励规则，仅输出JSON。格式：{"name":"政策名","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","capCoefficient":3,"tiers":[{"type":"类型","min":0.5,"max":null,"label":"档位","growth1":0.35,"rate1":0.04,"growth2":0.65,"rate2":0.08}]}。比例必须为小数。一个政策允许多个客户类型和多个base区间，tiers数组必须包含文本中全部类型与区间；每一项代表一个类型×base区间，内部有一档和二档增速/返点。二档指每个区间内部的两级奖励，不是限制整个政策只能有一个区间。不得因为有多个类型或区间而要求用户选择其一。max=null表示没有上限；min包含边界，max不包含边界。仅提取已有规则，历史日期或模拟用途不影响提取。不得猜缺失规则，缺少日期/档位/计返方法或不属于增量×现金率封顶模式时输出{"kind":"clarify","message":"需要补充什么"}。过程指标忽略，不执行代码。`
         const content = await callModel([{ role: 'system', content: prompt }, { role: 'user', content: text }], AbortSignal.timeout(60000), { maxTokens: 6000 })
         let parsed
         try {

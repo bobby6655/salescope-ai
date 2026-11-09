@@ -187,7 +187,7 @@ export async function runAgentLoop({ question, rows, headers, bindings = {}, typ
         const supportIds = action.supporting_result_ids ?? []
         if (!Array.isArray(supportIds) || supportIds.length > 4 || new Set(supportIds).size !== supportIds.length) throw new Error('supporting_result_ids最多4个不同的已计算ID')
         const supports = supportIds.filter(id => id !== action.result_id).map(id => { const result = results.get(id); if (!result) throw new Error(`补充result_id不存在：${id}`); return { result_id: id, ...result } })
-        if (!Object.keys(extraTools).length && /变化|涨幅|拖后腿|涨得|涨的好/.test(question) && entry.computed.operation !== 'compare' && !supports.some(result => result.computed.operation === 'compare')) throw new Error('变化问题不能只返回汇总；请调用analyze_change比较时段、计算涨幅及增长贡献/下降拖累')
+        if (!Object.hasOwn(extraTools, 'policy_summary') && /变化|涨幅|拖后腿|涨得|涨的好/.test(question) && entry.computed.operation !== 'compare' && !supports.some(result => result.computed.operation === 'compare')) throw new Error('变化问题不能只返回汇总；请调用analyze_change比较时段、计算涨幅及增长贡献/下降拖累')
         validateCompletion(question, entry, chart, currentDate.getFullYear())
         const combinedAnswer = [entry.computed.answer, ...supports.map(result => `补充分析（${result.result_id}）：${result.computed.answer}`)].join('\n\n')
         const answer = chart ? `${combinedAnswer}。图片已保存到 ${chart.relativePath}` : combinedAnswer

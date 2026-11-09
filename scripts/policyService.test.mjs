@@ -17,6 +17,8 @@ async function parse(call) {
 test('policy parser requests enough output for multi-tier rules and preserves validated values', async () => {
   const result = await parse(async (messages, signal, options) => {
     assert.equal(options.maxTokens, 6000)
+    assert.ok(messages[0].content.includes('多个客户类型'))
+    assert.ok(messages[0].content.includes('全部类型与区间'))
     assert.equal(signal.aborted, false)
     return '```json\n' + JSON.stringify(NATIONAL_DAY_POLICY) + '\n```'
   })

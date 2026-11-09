@@ -148,6 +148,6 @@ test('429 按服务端提示重试，不重复执行查询工具', async () => {
   } })
   assert.equal(calls, 3)
   assert.equal(steps.filter((step) => step.tool === 'query_data').length, 1)
-  assert.equal(steps[0].title, '万擎限流，等待重试')
+  assert.equal(steps[0].title, '模型接口限流，等待重试')
   assert.ok(result.answer.includes('26,200'))
 })

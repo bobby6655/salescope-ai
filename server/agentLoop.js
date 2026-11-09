@@ -114,7 +114,7 @@ export async function runAgentLoop({ question, rows, headers, bindings = {}, typ
       const retryBudget = timeoutMs - (Date.now() - started)
       if (!Number.isFinite(retryDelay) || retryDelay <= 0 || retryDelay > 60000 || retryDelay >= retryBudget || rateLimitRetries >= 2) throw error
       rateLimitRetries += 1
-      agentSteps.push({ title: '万擎限流，等待重试', method: '遵守服务端返回的重试时间，本轮工具尚未执行。', result: redact(error.message), status: 'warn' })
+      agentSteps.push({ title: '模型接口限流，等待重试', method: '遵守服务端返回的重试时间，本轮工具尚未执行。', result: redact(error.message), status: 'warn' })
       await new Promise((resolve) => setTimeout(resolve, retryDelay))
       const nextBudget = timeoutMs - (Date.now() - started)
       if (nextBudget <= 0) throw new Error('限流等待后已达到分析时间上限')

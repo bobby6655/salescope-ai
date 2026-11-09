@@ -6,19 +6,19 @@
   "rewrites": [
     {
       "source": "/login",
-      "destination": "https://gpl-billion-languages-thesaurus.trycloudflare.com/login"
+      "destination": "https://minimize-clusters-tribes-tomato.trycloudflare.com/login"
     },
     {
       "source": "/auth/:path*",
-      "destination": "https://gpl-billion-languages-thesaurus.trycloudflare.com/auth/:path*"
+      "destination": "https://minimize-clusters-tribes-tomato.trycloudflare.com/auth/:path*"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://gpl-billion-languages-thesaurus.trycloudflare.com/api/:path*"
+      "destination": "https://minimize-clusters-tribes-tomato.trycloudflare.com/api/:path*"
     },
     {
       "source": "/charts/:path*",
-      "destination": "https://gpl-billion-languages-thesaurus.trycloudflare.com/charts/:path*"
+      "destination": "https://minimize-clusters-tribes-tomato.trycloudflare.com/charts/:path*"
     },
     {
       "source": "/(.*)",

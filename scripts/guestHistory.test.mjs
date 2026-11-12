@@ -50,7 +50,7 @@ test('guest analysis ignores forged rows, isolates charts and never stores perma
   const app = await setup(t)
   const makeGuest = async () => (await app.request('/api/demo/session', { user: null, body: {} })).headers.get('set-cookie').split(';')[0]
   const cookie = await makeGuest(), other = await makeGuest()
-  const result = await (await app.request('/api/demo/assistant', { user: null, cookie, body: analysis('画记录数柱状图') })).json()
+  const result = await (await app.request('/api/demo/assistant', { user: null, cookie, body: { ...analysis('画记录数柱状图'), sample: 'orders' } })).json()
   const demo = parseCsv(await readFile(new URL('../data/sales-data.csv', import.meta.url), 'utf8'))
   assert.equal(result.rows[0].value, demo.rows.length)
   assert.equal(result.historyId, undefined)
@@ -90,7 +90,7 @@ test('history autosaves once, excludes clarification and evaluations, and isolat
 
 test('historical charts are independent copies; snapshots preserve old rules and totals', async t => {
   const app = await setup(t)
-  const result = await (await app.request('/api/assistant', { body: analysis('画记录数柱状图') })).json()
+  const result = await (await app.request('/api/assistant', { body: { ...analysis('画记录数柱状图'), sample: 'orders' } })).json()
   assert.ok(result.historyId)
   await withUserStorage('alice', app.directory, () => rm(path.join(storageDirectory('charts'), result.chart.fileName)))
   assert.equal((await app.request(`/api/history/${result.historyId}/chart`)).status, 200)

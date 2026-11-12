@@ -123,7 +123,7 @@ export function registerApiRoutes(middlewares, { modelCall = callModel } = {}) {
 
           if (storageIdentity()?.kind === 'guest') {
             const files = { sales: 'sales-data.csv', orders: 'orders-en.csv', ads: 'ads-data.csv' }
-            const sample = Object.hasOwn(files, body.sample) ? body.sample : 'sales'
+            const sample = 'sales' // 游客固定使用默认销售演示，不接受请求切换数据。
             const dataset = parseCsv(await readFile(new URL(`../data/${files[sample]}`, import.meta.url), 'utf8'))
             body = { question: body.question, history: body.history, rows: dataset.rawRows, headers: dataset.headers }
           }

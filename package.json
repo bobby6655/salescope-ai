@@ -20,7 +20,8 @@
     "setup:v3": "node scripts/setup-v3.mjs",
     "check:v3": "node scripts/check-v3.mjs",
     "check:v3-browser": "npm run build && node scripts/v3-browser-check.mjs",
-    "start": "node server/production.js"
+    "start": "node server/production.js",
+    "check:guided-browser": "npm run build && node scripts/guided-browser-check.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -33,6 +33,12 @@ test('new accounts receive synthetic default policy and uploads remain account-s
   const uploaded = await (await app.request('/api/policy/current')).json()
   assert.equal(uploaded.datasetKind, 'uploaded')
   assert.equal(uploaded.customers[0].customer, 'alice-upload')
+  const demo = await (await app.request('/api/policy/current?demo=true')).json()
+  assert.equal(demo.datasetKind, 'demo')
+  assert.equal(demo.summary.count, 20)
+  const demoExport = await (await app.request('/api/policy/export?format=json&demo=true')).json()
+  assert.ok(demoExport.customers.every(customer => customer.customer.startsWith('模拟')))
+  assert.equal((await (await app.request('/api/policy/current')).json()).customers[0].customer, 'alice-upload')
   assert.equal((await (await app.request('/api/policy/current', 'bob')).json()).datasetKind, 'demo')
 })
 async function setup(t, options = {}) {

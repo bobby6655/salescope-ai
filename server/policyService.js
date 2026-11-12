@@ -1,4 +1,4 @@
-import { readPolicyInput, readPolicyWorkbook, savePolicyInput, policyInputSource } from './policyIO.js'
+import { readPolicyInput, readDemoPolicyInput, readPolicyWorkbook, savePolicyInput, policyInputSource } from './policyIO.js'
 import { analyzePolicy, validatePolicy, policyCustomerRows } from '../src/policyAnalysis.js'
 import { NATIONAL_DAY_POLICY } from '../src/policyRules.js'
 import { createPolicyTools } from './policyTools.js'
@@ -17,18 +17,20 @@ const getReport = (input, overrides = {}, options = {}) => ({ ...analyzePolicy(i
 export function policyMiddleware(callModel, redact = String, source = () => 'wanqing') {
   return async (request, response) => {
     const route = request.url?.split('?')[0]
+    const demoRequested = new URL(request.url, 'http://localhost').searchParams.get('demo') === 'true'
+    const currentInput = () => demoRequested ? readDemoPolicyInput() : readPolicyInput()
     try {
       const isGet = request.method === 'GET'
       if (!isGet && request.method !== 'POST') throw new Error('仅支持GET或POST')
       if (route === '/current' && isGet) {
-        const input = await readPolicyInput()
+        const input = await currentInput()
         response.setHeader('Content-Type', 'application/json; charset=utf-8')
         response.end(JSON.stringify(getReport(input)))
         return
       }
       if (route === '/export' && isGet) {
         const url = new URL(request.url, 'http://localhost')
-        const report = getReport(await readPolicyInput())
+        const report = getReport(await currentInput())
         const kind = url.searchParams.get('format') || 'md'
         if (!['md', 'csv', 'json'].includes(kind)) throw new Error('导出支持md/csv/json')
         response.setHeader('Content-Type', kind === 'csv' ? 'text/csv; charset=utf-8' : kind === 'json' ? 'application/json; charset=utf-8' : 'text/markdown; charset=utf-8')
@@ -77,7 +79,7 @@ export function policyMiddleware(callModel, redact = String, source = () => 'wan
           result = { rules: validatePolicy({ ...parsed, sourceUrl: '', processBonusRate: 0, annualRate: 0.12, channelRate: 0.085, capMode: 'cashAdjusted', warnings: ['模型根据粘贴文本提取，使用前请确认完整规则；过程指标忽略；框架/渠道按正增量现金试算；ROI仅政策获返客户。'] }), source: source() }
         }
       } else if (route === '/question') {
-        const input = await readPolicyInput()
+        const input = await currentInput()
         const report = getReport(input)
         const rows = policyCustomerRows(report)
         const history = Array.isArray(body.history) ? body.history.filter((message) => ['user', 'assistant'].includes(message?.role)).slice(-10).map((message) => ({ role: message.role, content: String(message.content).slice(0, 3000) })) : []

@@ -33,5 +33,6 @@ export async function readPolicyInput() {
     throw error
   }
 }
+export async function readDemoPolicyInput() { return JSON.parse(await readFile(path.join(policyRoot, 'data/policy-demo.json'), 'utf8')) }
 
 export const policyInputSource = (bytes, name, sheet) => ({ name: path.basename(name), sheet, sha256: createHash('sha256').update(bytes).digest('hex') })

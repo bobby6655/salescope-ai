@@ -6,19 +6,19 @@
   "rewrites": [
     {
       "source": "/login",
-      "destination": "https://minimize-clusters-tribes-tomato.trycloudflare.com/login"
+      "destination": "https://northwest-responsible-penetration-simulations.trycloudflare.com/login"
     },
     {
       "source": "/auth/:path*",
-      "destination": "https://minimize-clusters-tribes-tomato.trycloudflare.com/auth/:path*"
+      "destination": "https://northwest-responsible-penetration-simulations.trycloudflare.com/auth/:path*"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://minimize-clusters-tribes-tomato.trycloudflare.com/api/:path*"
+      "destination": "https://northwest-responsible-penetration-simulations.trycloudflare.com/api/:path*"
     },
     {
       "source": "/charts/:path*",
-      "destination": "https://minimize-clusters-tribes-tomato.trycloudflare.com/charts/:path*"
+      "destination": "https://northwest-responsible-penetration-simulations.trycloudflare.com/charts/:path*"
     },
     {
       "source": "/(.*)",

@@ -1,0 +1,47 @@
+.analysis-architecture { margin-top: 28px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 22px; min-width: 0; }
+.architecture-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.architecture-heading h2 { font-size: 20px; margin: 0 0 8px; color: var(--ink); }
+.architecture-heading p, .architecture-footnote { font-size: 13px; line-height: 1.7; color: var(--body); }
+.architecture-status { white-space: nowrap; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; color: var(--body); }
+.architecture-legend { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 18px 0; align-items: center; font-size: 12px; color: var(--body); }
+.architecture-legend > span { display: inline-flex; align-items: center; gap: 8px; }
+.arch-line { display: inline-block; width: 30px; border-top: 2px solid #333447; position: relative; }
+.arch-line::after { content: ''; position: absolute; right: -1px; top: -4px; border-left: 6px solid #333447; border-top: 3px solid transparent; border-bottom: 3px solid transparent; }
+.arch-line.feedback { border-color: #696B80; border-top-style: dashed; }
+.arch-line.feedback::after { border-left-color: #696B80; }
+.arch-line.human { border-color: #986019; border-top-style: dashed; }
+.arch-line.human::after { border-left-color: #986019; }
+.architecture-controls { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--body); }
+.architecture-controls > div { display: flex; gap: 8px; }
+.architecture-controls .button { min-height: 44px; font-size: 12px; }
+.architecture-controls .button:hover:not(:disabled) { border-color: var(--blue); }
+.architecture-controls .button:active:not(:disabled) { background: #EBF1FE; }
+.architecture-controls .button:disabled { opacity: .45; cursor: default; }
+.architecture-scroll { overflow: auto; max-width: 100%; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.architecture-scroll:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.architecture-svg { display: block; min-width: 1100px; height: auto; font-family: inherit; }
+.architecture-lane > rect { fill: #F7F8FA; stroke: #DFE0E8; }
+.arch-lane-title { fill: var(--ink); font-size: 20px; font-weight: 600; }
+.arch-lane-caption { fill: #4B4D63; font-size: 14px; }
+.architecture-node > rect, .architecture-node > polygon { fill: #fff; stroke: #9395A8; }
+.architecture-node.arch-human > rect { fill: #FFF3DF; stroke: #AD762D; }
+.architecture-node.arch-ai > rect, .architecture-node.arch-ai > polygon { fill: #EBF1FE; stroke: #6082B6; }
+.architecture-node.arch-program > rect { fill: #EDF7F1; stroke: #629277; }
+.arch-node-title { fill: #23242E; font-size: 17px; font-weight: 600; }
+.arch-node-body { fill: #4B4D63; font-size: 14px; }
+.arch-node-role { fill: #4B4D63; font-size: 12px; font-weight: 600; }
+.arch-edge { fill: none; stroke-width: 1.7; stroke-linejoin: round; }
+.arch-edge-main { stroke: #333447; }
+.arch-edge-feedback { stroke: #696B80; stroke-dasharray: 7 5; }
+.arch-edge-human { stroke: #986019; stroke-dasharray: 7 5; }
+.arch-arrow-main { fill: #333447; }
+.arch-arrow-feedback { fill: #696B80; }
+.arch-arrow-human { fill: #986019; }
+.arch-edge-label rect { fill: #fff; }
+.arch-edge-label text { fill: #4B4D63; font-size: 14px; }
+.arch-label-human rect { fill: #FFF3DF; }
+.arch-label-human text { fill: #805014; }
+.arch-note { fill: #4B4D63; font-size: 14px; }
+.architecture-footnote { margin: 12px 0 0; }
+@media (max-width: 768px) { .architecture-heading { flex-direction: column; gap: 8px; } }
+@media (max-width: 480px) { .analysis-architecture { padding: 14px; } .architecture-controls { align-items: flex-start; } .architecture-heading h2 { font-size: 18px; } }

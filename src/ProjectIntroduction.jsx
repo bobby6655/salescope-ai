@@ -1,4 +1,5 @@
 import React from 'react'
+import AnalysisArchitecture from './AnalysisArchitecture.jsx'
 
 const projects = {
   analysis: {
@@ -87,17 +88,17 @@ export default function ProjectIntroduction({ project = 'analysis', onStart }) {
   return <article className="project-introduction" aria-label={`${data.label}项目介绍`}>
     <header className="project-intro-header"><div className="project-intro-kicker">项目 {data.number} · {data.label}</div><h1>{data.title}</h1><p className="project-intro-subtitle">{data.subtitle}</p><p className="project-intro-description">{data.description}</p><div className="project-intro-launch"><button className="button primary" onClick={onStart}>{data.button}</button><span>默认模拟数据 · 无需配置</span></div></header>
     <section className="project-task"><div><span className="project-section-label">从一个实际问题开始</span><p>{data.question}</p></div><dl><div><dt>输入</dt><dd>{data.input}</dd></div><div><dt>交付</dt><dd>{data.output}</dd></div></dl></section>
-    <section className="question-journey" aria-label={`${data.label}用户提问流程`}>
+    {project === 'policy' && <section className="question-journey" aria-label={`${data.label}用户提问流程`}>
       <h2>预设分析之外，也可以问自己的问题</h2>
       <p>{project === 'policy' ? '两表与规则确认后，直接核算生成复盘；预设问答和自由提问则共用下面的Agent流程。' : '预设问题帮助快速体验，自由提问和后续追问使用同一套Agent执行流程。'}</p>
       <div className="question-entry-pair"><div><span>入口一</span><strong>{project==='policy'?'点击预设复盘问题':'点击预设分析问题'}</strong><p>先体验一个已准备好的问题。</p></div><div><span>入口二</span><strong>用户自由输入问题</strong><p>{project==='policy'?'围绕当前客户、销售、达成和ROI提问。':'围绕当前数据，自行指定指标、范围和图表。'}</p></div></div>
       <div className="question-merge" aria-hidden="true">两个入口 → 同一问答执行流程</div>
       <ol className="question-flow"><li><strong>1. 理解本次问题</strong><p>结合当前数据{project==='policy'?'、政策与筛选范围':''}和最近对话，判断问题与口径。</p></li><li className="question-condition"><strong>2. 条件是否明确？</strong><p>明确 → 选择工具；不明确 → 向用户澄清。</p></li><li><strong>3. 执行与校验</strong><p>调用查询、计算或绘图工具；失败返回错误并继续修正。</p></li><li><strong>4. 回答与展示依据</strong><p>交付真实结果、证据和图表，用户决定是否追问。</p></li></ol>
       <div className="question-return"><p><strong>澄清回路：</strong>用户补充条件 → 回到第1步，理解补充后的问题。</p><p><strong>追问回路：</strong>用户继续提问 → 携带最近对话回到第1步，再查数据和计算。</p><p><strong>历史留存：</strong>登录用户每次成功回答分别保存；游客不长期保存。停止追问后，本次体验结束。</p></div>
-    </section>
-    <section className="project-map" aria-label={`${data.label}执行架构`}><div className="project-map-heading"><h2>这件事怎样完成</h2><p>每层都从任务开始写到任务结束；Agent编排负责调度，实际执行负责计算，数据回流负责历史留存。</p></div><div className="project-legend" aria-label="职责图例">{Object.entries(roles).map(([role,label])=><span className={`project-role role-${role}`} key={role}>{label}</span>)}<span>强调边框：确认或校验关口</span></div>
+    </section>}
+    {project === 'analysis' ? <AnalysisArchitecture /> : <section className="project-map" aria-label={`${data.label}执行架构`}><div className="project-map-heading"><h2>这件事怎样完成</h2><p>每层都从任务开始写到任务结束；Agent编排负责调度，实际执行负责计算，数据回流负责历史留存。</p></div><div className="project-legend" aria-label="职责图例">{Object.entries(roles).map(([role,label])=><span className={`project-role role-${role}`} key={role}>{label}</span>)}<span>强调边框：确认或校验关口</span></div>
       {data.layers.map(layer=><section className={`project-layer layer-${layer.tone}`} key={layer.title}><header><h3>{layer.title}</h3><p>{layer.caption}</p></header><ol className={`project-node-flow ${project === 'analysis' ? 'task-layer-flow' : ''}`}>{layer.nodes.map((node,i)=><li className={`project-node ${node.gate?'project-gate':''} ${node.future?'project-future':''}`} key={node.title}><span className="project-node-number">{i+1}</span><h4>{node.title}</h4><p>{node.text}</p>{node.role?<span className={`project-role role-${node.role}`}>{roles[node.role]}</span>:<span className="project-planned">后续规划</span>}</li>)}</ol>{layer.loops && <div className="layer-return-paths" aria-label={`${layer.title}分支与循环`}>{layer.loops.map(path=><div className="layer-return-path" key={path.label}><strong>{path.label}</strong><span className="layer-return-route">{path.from} <span aria-hidden="true">{path.label.includes('循环') ? '↶' : '→'}</span> {path.to}</span><p>{path.text}</p></div>)}</div>}{layer.loop&&<p className="project-feedback"><span aria-hidden="true">↶</span> {layer.loop}</p>}</section>)}
-    </section>
+    </section>}
     <footer className="project-intro-footer"><p>{data.demo}</p><p className="project-boundary">{data.boundary}</p><button className="button primary" onClick={onStart}>{data.button}</button></footer>
   </article>
 }

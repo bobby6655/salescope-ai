@@ -59,10 +59,23 @@ try {
   assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('.sidebar nav button')).map(b=>b.textContent)"),['数据分析','政策复盘'])
   assert.equal(await evaluate("document.querySelectorAll('.demo-steps button').length"),0)
   assert.ok(await evaluate("document.querySelector('[aria-label=数据分析项目介绍]')?.textContent.includes('L2 Agent 编排')"))
-  assert.equal(await evaluate("document.querySelectorAll('.project-layer').length"),4)
-  assert.ok(await evaluate("document.querySelector('.question-journey')?.textContent.includes('追问回路')"))
-  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('.project-layer')).map(layer=>layer.querySelectorAll('.project-node').length)"),[6,6,4,4])
-  assert.ok(await evaluate("document.querySelector('.layer-intent').textContent.includes('用户追问循环') && document.querySelector('.layer-agent').textContent.includes('Agent工具循环') && document.querySelector('.layer-agent').textContent.includes('澄清循环')"))
+  assert.equal(await evaluate("document.querySelectorAll('.architecture-lane').length"),4)
+  assert.equal(await evaluate("document.querySelectorAll('.question-journey').length"),0)
+  assert.ok(await evaluate("document.querySelector('.analysis-architecture').textContent.includes('Agent工具循环')"))
+  assert.ok(await evaluate(`(() => {
+    const expected = { 'follow-up':['view','question'], 'clarify':['understand','question'], 'tool-call':['choose','validate'], 'tool-feedback':['return','feedback'], 'tool-loop':['feedback','choose'], 'archive':['finish','history'], 'restore':['review','confirm'] };
+    return Object.entries(expected).every(([id,[from,to]]) => { const edge = document.querySelector('[data-edge='+id+']'); return edge?.dataset.from===from && edge.dataset.to===to && edge.getTotalLength()>0 && edge.getAttribute('marker-end') && document.querySelector('[data-node='+from+']') && document.querySelector('[data-node='+to+']'); });
+  })()`))
+  const diagramWidth = await evaluate("document.querySelector('.architecture-svg').getBoundingClientRect().width")
+  await click('放大')
+  assert.ok(await evaluate("document.querySelector('.architecture-svg').getBoundingClientRect().width") > diagramWidth)
+  await click('默认比例')
+  assert.equal(await evaluate("document.querySelector('.architecture-svg').getBoundingClientRect().width"), diagramWidth)
+  // SVG text must stay inside its own shape and the diagram viewport.
+  assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.architecture-node')).flatMap(node => {
+    const box=node.querySelector('rect,polygon').getBBox();
+    return Array.from(node.querySelectorAll('text')).filter(text=>{const b=text.getBBox();return b.x<box.x || b.x+b.width>box.x+box.width || b.y<box.y || b.y+b.height>box.y+box.height;}).map(text=>text.textContent);
+  })`), [])
   await command('Page.getLayoutMetrics').then(async metrics=>{const r=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{x:0,y:0,width:1440,height:metrics.cssContentSize.height,scale:1}});await writeFile(path.join(scratch,'analysis-layers.png'),Buffer.from(r.data,'base64'))})
   await click('开始数据分析演示')
   await waitFor("document.querySelectorAll('.kpi-card').length===4")
@@ -101,6 +114,10 @@ try {
   await click('完成体验，返回数据分析')
   await waitFor("Boolean(document.querySelector('[aria-label=数据分析项目介绍]')) && document.querySelector('.v2-mobile-nav .primary')?.textContent==='数据分析'")
   assert.ok(await evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'))
+  assert.ok(await evaluate("document.querySelector('.architecture-scroll').scrollWidth > document.querySelector('.architecture-scroll').clientWidth"))
+  await evaluate("document.querySelector('.architecture-scroll').scrollLeft=500")
+  assert.ok(await evaluate("document.querySelector('.architecture-scroll').scrollLeft > 0"))
+  await evaluate("document.querySelector('.architecture-scroll').scrollIntoView();document.querySelector('.architecture-scroll').scrollLeft=0")
   await command('Page.captureScreenshot',{format:'png'}).then(r=>writeFile(path.join(scratch,'guided-mobile.png'),Buffer.from(r.data,'base64')))
   assert.deepEqual(exceptions,[])
   console.log('PASS guided interview flow: exactly 2 nav entries; data steps, real tool/chart result, demo policy75%/20 customers, completion and 390px; introductions with 4 layers each; model stub. Screenshots: '+scratch)

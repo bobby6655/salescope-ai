@@ -46,3 +46,7 @@ V1快照按原哈希保留；GitHub副本不包含本地项目历史记录中的
 ## 公网部署
 
 独立Node生产服务、用户隔离、Docker、Caddy HTTPS、GitHub Actions及回退流程见 [公网部署说明](docs/PUBLIC_DEPLOYMENT.md)。生产启动命令为`npm start`，必须配置账号和模型环境。
+
+## 数据分析介绍
+
+数据分析入口使用可缩放的四层SVG关系图，展示用户追问、条件澄清、Agent工具执行反馈和成功结果历史留存。手机支持图内横向滚动；演示仍使用固定模拟数据。运行`npm run check:guided-browser`检查介绍、缩放与完整演示流程。详见[项目介绍](docs/PROJECT_INTRODUCTIONS.md)。

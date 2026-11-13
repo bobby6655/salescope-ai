@@ -8,25 +8,41 @@ const projects = {
     input: 'CSV / Excel · 日期、指标与分类字段', output: '经营结论 · 依据表 · 图表 · 分析历史',
     demo: '默认销售演示已准备好：12条模拟记录，销售额合计57,100。无需上传或登录。',
     layers: [
-      { title: 'L1 产品规划层', caption: '业务问题进入 → 确认分析任务', tone: 'intent', nodes: [
-        { title: '任务开始：接收业务问题', text: '预设问题或用户自由输入启动任务；已有答案后也可继续追问，例如换地区、换时间或要求画图。', role: 'human' },
-        { title: '明确范围与交付要求', text: '确认指标、时间、比较对象和数据粒度；约定需要结论、依据表或图表。', role: 'human', gate: true },
-        { title: '任务结束：形成分析要求', text: '把确认的问题与字段口径交给Agent；信息不明确时先补充，不猜指标。', role: 'human' },
+      { title: 'L1 产品规划层', caption: '导入数据 → 确认口径 → 初步分析 → 提问分析 → 查看结论', tone: 'intent', nodes: [
+        { title: '任务开始：导入数据', text: '上传业务表或载入默认演示。先看原始预览、字段和质量提示，不在此阶段给出经营结论。', role: 'human' },
+        { title: '确认口径与对应关系', text: '核对指标、单位、日期、记录粒度及表间关联。可预填默认口径，由用户确认。', role: 'human', gate: true },
+        { title: '运行模板初步分析', text: '使用推荐模板，明确分析范围后启动，得到第一份结论与依据。', role: 'program' },
+        { title: '用户选择提问分析', text: '看初步结果后自由提问；也可在口径确认后直接提问。问题不明确时补充条件。', role: 'human' },
+        { title: '查看结论，决定是否追问', text: '核对答案、依据和图表；继续问客户、时间或指标，启动下一次分析。', role: 'human' },
+        { title: '任务结束：完成本次分析', text: '用户不再追问时结束体验。登录用户的每次成功结果已分别留存。', role: 'human' },
+      ], loops: [
+        { label: '直接提问分支', from: '2 确认口径', to: '4 提问分析', text: '无需强制先跑模板。' },
+        { label: '用户追问循环', from: '5 查看结论', to: '4 提问分析', text: '继续追问则循环；不追问则进入6结束。' },
       ] },
-      { title: 'L2 Agent 编排层', caption: '接收分析要求 → 交付通过校验的答案', tone: 'agent', loop: '每次工具执行结果或错误回传给模型，再选择下一步；缺条件则追问，超出预算则停止并提示失败。', nodes: [
-        { title: '任务开始：准备执行上下文', text: 'Harness装入本次问题、当前字段、最近对话和工具。模型判断新问题与追问范围；含义不清就先澄清。', role: 'ai' },
-        { title: '选择动作并循环推进', text: '模型提出查询、变化分析或绘图动作；Harness校验、调用工具，将结果反馈，必要时修正。', role: 'ai' },
-        { title: '任务结束：校验后完成', text: 'Harness校验结果和图表后回答。用户可继续追问并启动下一次执行；条件未明确则返回澄清问题。', role: 'program', gate: true },
+      { title: 'L2 Agent 编排层', caption: '接收模板或问题 → 理解与澄清 → 工具循环 → 校验后回答', tone: 'agent', nodes: [
+        { title: '任务开始：接收分析请求', text: '模板问题、自由提问或追问进入Harness，同时带上当前数据、确认口径和最近对话。', role: 'program' },
+        { title: '理解问题，判断条件', text: '模型判断要分析什么、沿用哪些条件。信息不足时向用户澄清，补充后重新理解。', role: 'ai' },
+        { title: '选择工具与参数', text: '模型决定查询、变化分析或绘图动作；Harness校验参数并调用实际执行层。', role: 'ai' },
+        { title: '接收执行反馈', text: '实际执行层返回Observation：真实结果、编号或错误，模型据此判断下一步。', role: 'program' },
+        { title: '判断并校验是否完成', text: '还缺计算或图表就继续调用；完成时检查结果引用、图表对应和本次用户要求。', role: 'program', gate: true },
+        { title: '任务结束：回答或请求补充', text: '校验通过交付答案与依据；澄清交给用户；超出轮次或时限则停止并明确失败。', role: 'program' },
+      ], loops: [
+        { label: '澄清循环', from: '2 条件不明确', to: '2 重新理解', text: '向用户提问 → 用户补充条件 → 重新判断。' },
+        { label: 'Agent工具循环', from: '5 未满足要求', to: '3 选择工具', text: '继续查询、修正参数或绘图 → 4执行反馈 → 5再次判断。' },
       ] },
-      { title: 'L3 实际执行层', caption: '接收具体工具请求 → 返回结果或错误', tone: 'execution', nodes: [
-        { title: '任务开始：取得数据与参数', text: '工具接收字段、筛选、分组或绘图参数，读取当前数据或账号确认的数据版本。', role: 'program' },
-        { title: '执行计算与生成图表', text: '程序计算合计、占比、日均变化、贡献与拖累；绘图工具使用已有结果生成SVG。', role: 'program' },
-        { title: '任务结束：返回可信执行结果', text: '成功返回数值、依据和图表；非法字段、缺数或执行异常明确返回，供Agent决定下一步。', role: 'program' },
+      { title: 'L3 实际执行层', caption: '接收工具请求 → 检查数据与参数 → 执行 → 返回反馈', tone: 'execution', nodes: [
+        { title: '任务开始：接收工具请求', text: '接收编排层指定的动作、字段、筛选、分组或绘图参数，以及对应的数据版本。', role: 'program' },
+        { title: '检查数据与参数', text: '读取当前明细，检查字段、类型、范围和口径。输入异常明确报错，不替用户猜指标。', role: 'program' },
+        { title: '计算或生成图表', text: '按请求执行聚合、占比、变化与贡献计算；绘图请求使用已计算的结果。', role: 'program' },
+        { title: '任务结束：返回执行反馈', text: '返回数值、依据、结果编号或图表；错误也明确返回。交给L2决定继续还是回答。', role: 'program' },
+      ], loops: [
+        { label: '跨层反馈', from: '4 执行反馈', to: 'L2 第4步', text: 'L2决定下一次工具调用；工具层不自行解释用户意图。' },
       ] },
-      { title: 'L4 数据回流层', caption: '接收成功结论 → 形成可回看的历史记录', tone: 'archive', nodes: [
-        { title: '任务开始：接收成功分析', text: '登录用户的成功结论进入历史保存；游客、失败请求、澄清和自动评测不进入业务历史。', role: 'program' },
-        { title: '保存当时的结论与依据', text: '每次成功回答分别留存问题、答案、依据及图表。最近对话用于即时追问，账号历史用于日后回看。', role: 'program' },
-        { title: '任务结束：历史可查可导出', text: '用户可查找、回看或导出当时结果；有版本引用可继续分析，不覆盖原记录。', role: 'human' },
+      { title: 'L4 数据回流层', caption: '接收成功结果 → 保存当时依据 → 回看与导出 → 完成留存', tone: 'archive', nodes: [
+        { title: '任务开始：接收成功分析', text: '登录用户的模板分析与每次成功回答进入历史。游客、澄清、失败和评测不进入业务历史。', role: 'program' },
+        { title: '保存当时的结果与依据', text: '按账号保存问题、字段口径、结论、执行依据和图表；有确认版本时记录数据版本引用。', role: 'program' },
+        { title: '用户回看或导出', text: '查找过去的记录并核对当时结果。历史回看不重新计算，也不覆盖原结论。', role: 'human' },
+        { title: '任务结束：历史留存完成', text: '形成可持续回看的分析记录。即时追问使用最近对话，历史留存不是自动推理循环。', role: 'program' },
       ] },
     ],
     boundary: '支持结构确认与受控分析，不保证任意表格零确认理解，也不把描述性变化当成因果结论。',
@@ -80,7 +96,7 @@ export default function ProjectIntroduction({ project = 'analysis', onStart }) {
       <div className="question-return"><p><strong>澄清回路：</strong>用户补充条件 → 回到第1步，理解补充后的问题。</p><p><strong>追问回路：</strong>用户继续提问 → 携带最近对话回到第1步，再查数据和计算。</p><p><strong>历史留存：</strong>登录用户每次成功回答分别保存；游客不长期保存。停止追问后，本次体验结束。</p></div>
     </section>
     <section className="project-map" aria-label={`${data.label}执行架构`}><div className="project-map-heading"><h2>这件事怎样完成</h2><p>每层都从任务开始写到任务结束；Agent编排负责调度，实际执行负责计算，数据回流负责历史留存。</p></div><div className="project-legend" aria-label="职责图例">{Object.entries(roles).map(([role,label])=><span className={`project-role role-${role}`} key={role}>{label}</span>)}<span>强调边框：确认或校验关口</span></div>
-      {data.layers.map(layer=><section className={`project-layer layer-${layer.tone}`} key={layer.title}><header><h3>{layer.title}</h3><p>{layer.caption}</p></header><ol className="project-node-flow">{layer.nodes.map((node,i)=><li className={`project-node ${node.gate?'project-gate':''} ${node.future?'project-future':''}`} key={node.title}><span className="project-node-number">{i+1}</span><h4>{node.title}</h4><p>{node.text}</p>{node.role?<span className={`project-role role-${node.role}`}>{roles[node.role]}</span>:<span className="project-planned">后续规划</span>}</li>)}</ol>{layer.loop&&<p className="project-feedback"><span aria-hidden="true">↶</span> {layer.loop}</p>}</section>)}
+      {data.layers.map(layer=><section className={`project-layer layer-${layer.tone}`} key={layer.title}><header><h3>{layer.title}</h3><p>{layer.caption}</p></header><ol className={`project-node-flow ${project === 'analysis' ? 'task-layer-flow' : ''}`}>{layer.nodes.map((node,i)=><li className={`project-node ${node.gate?'project-gate':''} ${node.future?'project-future':''}`} key={node.title}><span className="project-node-number">{i+1}</span><h4>{node.title}</h4><p>{node.text}</p>{node.role?<span className={`project-role role-${node.role}`}>{roles[node.role]}</span>:<span className="project-planned">后续规划</span>}</li>)}</ol>{layer.loops && <div className="layer-return-paths" aria-label={`${layer.title}分支与循环`}>{layer.loops.map(path=><div className="layer-return-path" key={path.label}><strong>{path.label}</strong><span className="layer-return-route">{path.from} <span aria-hidden="true">{path.label.includes('循环') ? '↶' : '→'}</span> {path.to}</span><p>{path.text}</p></div>)}</div>}{layer.loop&&<p className="project-feedback"><span aria-hidden="true">↶</span> {layer.loop}</p>}</section>)}
     </section>
     <footer className="project-intro-footer"><p>{data.demo}</p><p className="project-boundary">{data.boundary}</p><button className="button primary" onClick={onStart}>{data.button}</button></footer>
   </article>
